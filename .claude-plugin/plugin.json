@@ -1,0 +1,6 @@
+{
+  "name": "skill-optimizer",
+  "description": "A skill that optimizes other Claude skills, managing context and adding scripts",
+  "version": "1.0.0",
+  "author": { "name": "Rafe Hart" }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "rafaelh",
+  "description": "Rafe Hart's Claude Code plugins",
+  "owner": {
+    "name": "Rafe Hart"
+  },
+  "plugins": [
+    {
+      "name": "skill-optimizer",
+      "description": "Audit, optimize, and validate Claude skill files (SKILL.md)",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}
