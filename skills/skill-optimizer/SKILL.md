@@ -27,10 +27,12 @@ Find the target `SKILL.md`. Skills live under `~/.claude/skills/<name>/SKILL.md`
 Always start with the bundled scripts to surface mechanical issues before reading the body. All three use stdlib only — no install step. Each accepts `--json` for machine-readable output and exits non-zero on FAIL-level issues.
 
 ```bash
-python3 ~/.claude/skills/skill-optimizer/scripts/validate_skill.py <skill-dir>
-python3 ~/.claude/skills/skill-optimizer/scripts/analyze_skill.py <skill-dir>
-python3 ~/.claude/skills/skill-optimizer/scripts/recommend_scripts.py <skill-dir>
+python3 "${CLAUDE_SKILL_DIR}/scripts/validate_skill.py" <skill-dir>
+python3 "${CLAUDE_SKILL_DIR}/scripts/analyze_skill.py" <skill-dir>
+python3 "${CLAUDE_SKILL_DIR}/scripts/recommend_scripts.py" <skill-dir>
 ```
+
+`${CLAUDE_SKILL_DIR}` is set by Claude Code to the directory containing this `SKILL.md`, so these commands work whether the skill is symlinked under `~/.claude/skills/`, installed via `/plugin install`, or bundled in a project's `.claude/skills/`.
 
 - `validate_skill.py` enforces the spec: required fields, name regex (lowercase, hyphens, no leading/trailing/consecutive hyphens, max 64 chars), description length (1–1024), name matches directory, optional field constraints, broken file references. Each issue carries a stable `code` (e.g. `name-mismatch-dir`, `description-too-long`, `broken-reference`).
 - `analyze_skill.py` flags content anti-patterns: declarative description openings, missing trigger contexts, body over 500 lines / 5000 tokens, generic filler, references introduced without a load condition. Codes: `declarative-description`, `description-no-when`, `body-too-many-lines`, `generic-filler`, `reference-no-load-trigger`.
