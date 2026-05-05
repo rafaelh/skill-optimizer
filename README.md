@@ -7,26 +7,62 @@
         \/     \/                      \/|__|                 \/         \/    \/
 ```
 
-This is a skill optimizer intended for use with Claude skills, but since Anthropic use the [agentskills.io/](https://agentskills.io/) standard, it will likely be useful for any system supporting skills.
+A Claude Code skill that builds, audits, and improves other Claude Agent Skills. Uses the [agentskills.io](https://agentskills.io/) specification. It incorporates anthropic's guidance, and content from their skill-builder as well.
 
-## What does it do?
+## What it does
 
-- Validates your skill against the above specification and fixes it if it doesn't comply
-- Rewrites the `description` field so the skill actually activates — imperative phrasing, intent-focused, with concrete trigger contexts
-- Diagnoses why a skill isn't triggering and applies the fix
-- Applies content patterns: adds a Gotchas section, converts declarations into procedures, picks defaults instead of offering menus, matches prescriptiveness to how fragile the task is
-- Optimizes context via progressive disclosure, splitting detail out into `references/` files with explicit load triggers
-- Looks for opportunities to introduce helper scripts; this gives your skills tools that operate deterministically and return data in a format agents can use. Any scripts created/reviewed will recieve some _basic_ prompt injection defences
-- Flags anti-patterns (generic filler, mega-skills, unsanitized script echoes, references with no load trigger, etc.)
-- Optional trigger eval — runs your skill against a set of realistic prompts to verify it activates when it should
+**Validation and analysis**
+
+- Validates SKILL.md frontmatter, body structure, & script references against the spec
+- Analyzes token budget, section balance, progressive disclosure quality, & gotchas coverage
+- Recommends whether to introduce helper scripts, and what patterns they should follow
+- Detects description overlap between sibling skills (bag-of-words cosine similarity)
+
+**Description optimization**
+
+- Rewrites the `description` field with imperative phrasing and concrete trigger contexts
+- Runs a trigger-rate eval: invokes `claude -p` against a labeled query set and counts how often the skill activates
+- Iterates candidate descriptions against train failures, scores against a held-out validation set, and proposes the winner
+
+**Scaffolding**
+
+- Scaffolds new skills from templates: SKILL.md, `scripts/example.py` (PEP 723, argparse, `--json`), `references/`, `assets/`, and `tests/`
+
+**Script quality**
+
+- Checks helper scripts for performance anti-patterns (AST static analysis + optional cProfile runtime profiling)
+- Counts tokens via the Anthropic SDK when available, heuristic fallback otherwise
+
+## Scripts
+
+All scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machine-readable output.
+
+| Script | Purpose |
+|---|---|
+| `validate_skill.py` | Frontmatter + body validation, exit 1 on any failure |
+| `analyze_skill.py` | Token count, section balance, progressive disclosure quality |
+| `recommend_scripts.py` | Advises on helper scripts — what to add and what patterns to follow |
+| `detect_skill_overlap.py` | Cosine similarity between skill descriptions; single-skill or all-pairs mode |
+| `eval_triggers.py` | Trigger-rate eval against a labeled query set; train/validation split |
+| `optimize_description.py` | Multi-round description optimizer; propose-only by default, `--apply` to write |
+| `init_skill.py` | Scaffold a new skill directory from bundled templates |
+| `count_tokens.py` | Token counter; exact via Anthropic SDK, heuristic fallback |
+| `perf_check.py` | AST-based performance checker + optional cProfile profiling |
 
 ## Installing
 
-This repo is a Claude Code plugin marketplace. From inside Claude Code, add the marketplace and install the plugin:
+This repo is a Claude Code plugin marketplace. From inside Claude Code, add the marketplace and install the skill:
 
 ```
 /plugin marketplace add rafaelh/skill-optimizer
-/plugin install skill-optimizer@rafaelh
+/plugin install skill-optimizer@rafaelh-skill-optimizer
+/reload-plugins
 ```
 
-Once installed, the `skill-optimizer` skill activates automatically when you ask Claude to create, audit, or fix a skill (e.g. "audit my SKILL.md", "why isn't this skill activating?").
+Once installed, the `skill-optimizer` skill activates automatically when you ask Claude to create, audit, or fix a skill — e.g. "audit my SKILL.md", "why isn't this skill activating?", "scaffold a new skill called search-jira".
+
+## Requirements
+
+- Python 3.14+
+- Claude Code CLI (for trigger evals and description optimization)
+- `ANTHROPIC_API_KEY` in environment (optional — enables exact token counts via the SDK)
