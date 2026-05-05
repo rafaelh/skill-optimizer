@@ -21,13 +21,13 @@ control characters escaped, length capped.
 from __future__ import annotations
 
 import argparse
-import json
-import re
-import sys
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
+import json
 from pathlib import Path
+import re
+import sys
 
 from skill_lib import sanitize_for_echo
 

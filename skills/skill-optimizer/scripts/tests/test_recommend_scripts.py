@@ -1,7 +1,7 @@
 import json
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 from recommend_scripts import recommend
@@ -267,7 +267,11 @@ class TestRobustness:
 class TestCli:
     def _run(self, *args):
         return subprocess.run(
-            [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, encoding="utf-8"
+            [sys.executable, str(SCRIPT), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
         )
 
     def test_help_works(self):

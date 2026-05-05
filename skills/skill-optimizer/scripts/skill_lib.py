@@ -40,7 +40,7 @@ _DANGEROUS_UNICODE = frozenset(
         "⁩",
         # Invisible width / spacing. ZWJ (U+200D) is intentionally NOT here —
         # it's load-bearing inside emoji sequences.
-        "​",
+        "\u200b",
         "‌",
         "⁠",
         "﻿",

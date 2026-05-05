@@ -35,17 +35,27 @@ select = [
     "PL",   # pylint
 ]
 ignore = [
-    "S102",   # use of exec — intentional in profile_script
-    "T201",   # print — this is a CLI tool
-    "TRY003", # long exception messages
+    "S102",    # use of exec — intentional in profile_script
+    "T201",    # print — this is a CLI tool
+    "TRY003",  # long exception messages
     "PLR2004", # magic value comparisons
     "PLR0912", # too many branches — AST visitors are inherently branchy
     "PLR0913", # too many arguments
+    "PLR0915", # too many statements — main() is CLI dispatch, inherently wordy
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "perf_check.py" = [
-    "ERA001", # commented-out code — noqa comments are intentional
+    "ERA001",  # noqa comments are intentional
+    "RUF001",  # × in user-facing messages is intentional (multiplication sign)
+]
+"skills/skill-optimizer/scripts/skill_lib.py" = [
+    "PLE2502", # intentional BiDi chars — this IS the blocklist being defined
+]
+"skills/skill-optimizer/scripts/tests/*.py" = [
+    "S101",    # assert is correct in tests
+    "S603",    # subprocess calls in tests use controlled, trusted input
+    "PLE2502", # BiDi chars in test strings are the inputs being tested
 ]
 
 [tool.ruff.lint.isort]
@@ -54,6 +64,7 @@ force-sort-within-sections = true
 [tool.mypy]
 python_version = "3.10"
 strict = true
+exclude = "^skills/"
 warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true

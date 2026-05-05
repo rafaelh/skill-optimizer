@@ -1,10 +1,10 @@
 import json
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 
-import pytest
 from analyze_skill import analyze
+import pytest
 
 SCRIPT = Path(__file__).resolve().parent.parent / "analyze_skill.py"
 
@@ -103,7 +103,11 @@ class TestSanitization:
 class TestCli:
     def _run(self, *args):
         return subprocess.run(
-            [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, encoding="utf-8"
+            [sys.executable, str(SCRIPT), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
         )
 
     def test_help_works(self):
