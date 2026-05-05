@@ -1,0 +1,62 @@
+[
+  {
+    "query": "I've got a spreadsheet in ~/data/q4_results.xlsx with revenue in col C and expenses in col D — can you add a profit margin column and highlight anything under 10%?",
+    "should_trigger": true,
+    "notes": "explicit file + concrete operation; should match a CSV/Excel skill"
+  },
+  {
+    "query": "this csv from the export is messy, lots of inconsistent capitalization and trailing whitespace",
+    "should_trigger": true,
+    "notes": "casual phrasing, no verb — agent must infer 'clean it'"
+  },
+  {
+    "query": "my manager dumped a tsv on me and asked for a summary by region",
+    "should_trigger": true,
+    "notes": "tsv variant, narrative framing, should still trigger"
+  },
+  {
+    "query": "I have data with ~50k rows and want to compute correlations between three numeric columns",
+    "should_trigger": true,
+    "notes": "no file extension named — tests intent over keywords"
+  },
+  {
+    "query": "give me a chart of monthly revenue from sheet 'FY24' in finance.xlsx",
+    "should_trigger": true,
+    "notes": "Excel-specific vocabulary, single sheet"
+  },
+  {
+    "query": "the customers.csv file has duplicate emails and I need to dedupe keeping the most recent record",
+    "should_trigger": true,
+    "notes": "structured operation on tabular data"
+  },
+  {
+    "query": "what's the quickest way to convert this json file to yaml",
+    "should_trigger": false,
+    "notes": "different domain (structured data conversion, not analysis)"
+  },
+  {
+    "query": "can you upload these csv rows to my postgres database?",
+    "should_trigger": false,
+    "notes": "near-miss — same keyword 'csv' but actual task is database loading"
+  },
+  {
+    "query": "review this PR for style issues",
+    "should_trigger": false,
+    "notes": "totally different domain"
+  },
+  {
+    "query": "explain how openpyxl Reads a workbook in chunks",
+    "should_trigger": false,
+    "notes": "library-internals question, not data work"
+  },
+  {
+    "query": "fix the failing test in test_csv_parser.py",
+    "should_trigger": false,
+    "notes": "the file mentions csv but the task is debugging"
+  },
+  {
+    "query": "update the Excel formulas in C12:C30 to use SUMIF instead of SUM",
+    "should_trigger": false,
+    "notes": "spreadsheet authoring, not data analysis"
+  }
+]

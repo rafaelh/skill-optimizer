@@ -22,10 +22,13 @@ import json
 from pathlib import Path
 import re
 import sys
+from typing import Any
 
 from skill_lib import parse_frontmatter, sanitize_for_echo
 
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+_MD_LINK_RE = re.compile(r"\]\(([^)]+\.md)\)")
+_SCRIPT_REF_RE = re.compile(r"`(scripts/[^`\s]+\.(?:py|sh|js|ts))`")
 MAX_NAME = 64
 MAX_DESCRIPTION = 1024
 MIN_DESCRIPTION_WARN = 60
@@ -61,7 +64,7 @@ def validate(skill_dir: Path) -> list[Issue]:
         return [
             Issue(
                 "fail",
-                "skill-md-missing",
+                "validate.skill-md.missing",
                 f"SKILL.md not found at {sanitize_for_echo(skill_md)}",
             )
         ]
@@ -72,7 +75,7 @@ def validate(skill_dir: Path) -> list[Issue]:
         return [
             Issue(
                 "fail",
-                "frontmatter-missing",
+                "validate.frontmatter.missing",
                 "SKILL.md is missing YAML frontmatter (must start with '---')",
             )
         ]
@@ -85,17 +88,17 @@ def validate(skill_dir: Path) -> list[Issue]:
     return issues
 
 
-def _check_name(fm: dict, skill_dir: Path, issues: list[Issue]) -> None:
+def _check_name(fm: dict[str, Any], skill_dir: Path, issues: list[Issue]) -> None:
     name = fm.get("name", "")
     if not name:
-        issues.append(Issue("fail", "name-missing", "'name' field is required", "name"))
+        issues.append(Issue("fail", "validate.name.missing", "'name' field is required", "name"))
         return
     safe = sanitize_for_echo(name, max_len=80)
     if len(name) > MAX_NAME:
         issues.append(
             Issue(
                 "fail",
-                "name-too-long",
+                "validate.name.too-long",
                 f"'name' is {len(name)} chars (max {MAX_NAME})",
                 "name",
             )
@@ -104,7 +107,7 @@ def _check_name(fm: dict, skill_dir: Path, issues: list[Issue]) -> None:
         issues.append(
             Issue(
                 "fail",
-                "name-bad-format",
+                "validate.name.bad-format",
                 f"'name' must be lowercase a-z/0-9 with single hyphens, no leading/"
                 f"trailing/consecutive hyphens. Got: {safe!r}",
                 "name",
@@ -114,7 +117,7 @@ def _check_name(fm: dict, skill_dir: Path, issues: list[Issue]) -> None:
         issues.append(
             Issue(
                 "fail",
-                "name-mismatch-dir",
+                "validate.name.dir-mismatch",
                 f"'name' ({safe!r}) must match parent directory "
                 f"({sanitize_for_echo(skill_dir.name)!r})",
                 "name",
@@ -122,13 +125,13 @@ def _check_name(fm: dict, skill_dir: Path, issues: list[Issue]) -> None:
         )
 
 
-def _check_description(fm: dict, issues: list[Issue]) -> None:
+def _check_description(fm: dict[str, Any], issues: list[Issue]) -> None:
     desc = fm.get("description", "")
     if not desc:
         issues.append(
             Issue(
                 "fail",
-                "description-missing",
+                "validate.description.missing",
                 "'description' is required and must be non-empty",
                 "description",
             )
@@ -138,7 +141,7 @@ def _check_description(fm: dict, issues: list[Issue]) -> None:
         issues.append(
             Issue(
                 "fail",
-                "description-too-long",
+                "validate.description.too-long",
                 f"'description' is {len(desc)} chars (max {MAX_DESCRIPTION})",
                 "description",
             )
@@ -147,7 +150,7 @@ def _check_description(fm: dict, issues: list[Issue]) -> None:
         issues.append(
             Issue(
                 "warn",
-                "description-too-short",
+                "validate.description.too-short",
                 f"'description' is only {len(desc)} chars — likely too short to "
                 f"convey when to trigger",
                 "description",
@@ -155,27 +158,27 @@ def _check_description(fm: dict, issues: list[Issue]) -> None:
         )
 
 
-def _check_compatibility(fm: dict, issues: list[Issue]) -> None:
+def _check_compatibility(fm: dict[str, Any], issues: list[Issue]) -> None:
     compat = fm.get("compatibility")
     if isinstance(compat, str) and compat and len(compat) > MAX_COMPATIBILITY:
         issues.append(
             Issue(
                 "fail",
-                "compatibility-too-long",
+                "validate.compatibility.too-long",
                 f"'compatibility' is {len(compat)} chars (max {MAX_COMPATIBILITY})",
                 "compatibility",
             )
         )
 
 
-def _check_unknown_keys(fm: dict, issues: list[Issue]) -> None:
+def _check_unknown_keys(fm: dict[str, Any], issues: list[Issue]) -> None:
     unknown = set(fm.keys()) - ALLOWED_KEYS
     for key in sorted(unknown):
         safe = sanitize_for_echo(key, max_len=64)
         issues.append(
             Issue(
                 "warn",
-                "unknown-frontmatter-key",
+                "validate.frontmatter.unknown-key",
                 f"unknown frontmatter key {safe!r} (spec defines: "
                 f"{', '.join(sorted(ALLOWED_KEYS))})",
                 key,
@@ -193,8 +196,11 @@ def _check_references(skill_dir: Path, body: str, issues: list[Issue]) -> None:
             return False
         return True
 
-    for ref in re.findall(r"\]\(([^)]+\.md)\)", body):
+    for ref in _MD_LINK_RE.findall(body):
         if ref.startswith(("http://", "https://", "#", "/")):
+            continue
+        # Skip template placeholder paths like `references/<topic>.md`.
+        if any(c in ref for c in "<>${}"):
             continue
         target = (skill_dir / ref).resolve()
         # Refuse to probe paths that escape the skill directory.
@@ -204,12 +210,12 @@ def _check_references(skill_dir: Path, body: str, issues: list[Issue]) -> None:
             issues.append(
                 Issue(
                     "warn",
-                    "broken-reference",
+                    "validate.reference.broken",
                     f"referenced file does not exist: {sanitize_for_echo(ref)}",
                 )
             )
 
-    for script_match in re.finditer(r"`(scripts/[^`\s]+\.(?:py|sh|js|ts))`", body):
+    for script_match in _SCRIPT_REF_RE.finditer(body):
         ref = script_match.group(1)
         # Skip placeholder paths like `scripts/<name>.py` or `scripts/${X}.py`.
         if any(c in ref for c in "<>${}"):
@@ -221,13 +227,13 @@ def _check_references(skill_dir: Path, body: str, issues: list[Issue]) -> None:
             issues.append(
                 Issue(
                     "warn",
-                    "broken-script-reference",
+                    "validate.script.broken",
                     f"referenced script does not exist: {sanitize_for_echo(ref)}",
                 )
             )
 
 
-def _summary(issues: list[Issue]) -> dict:
+def _summary(issues: list[Issue]) -> dict[str, Any]:
     fails = sum(1 for i in issues if i.severity == "fail")
     warns = sum(1 for i in issues if i.severity == "warn")
     return {"fail": fails, "warn": warns, "ok": fails == 0}

@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "skill-optimizer"
-version = "0.1.0"
+version = "2.0"
 requires-python = ">=3.14"
 
 [tool.ruff]
@@ -18,7 +18,10 @@ select = [
     "F",    # pyflakes
     "I",    # isort
     "N",    # pep8-naming
-    "UP",   # pyupgrade
+    "UP",   # pyupgrade — language-upgrade checks
+    "FA",   # flake8-future-annotations — modernization of __future__ usage
+    "FURB", # refurb — additional modernization suggestions
+    "TC",   # flake8-type-checking — TYPE_CHECKING import discipline
     "B",    # flake8-bugbear
     "C4",   # flake8-comprehensions
     "SIM",  # flake8-simplify
@@ -45,9 +48,13 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"perf_check.py" = [
+"skills/skill-optimizer/scripts/perf_check.py" = [
     "ERA001",  # noqa comments are intentional
     "RUF001",  # × in user-facing messages is intentional (multiplication sign)
+    "N802",    # visit_* method names are required by ast.NodeVisitor API
+]
+"skills/skill-optimizer/scripts/count_tokens.py" = [
+    "PLC0415",  # lazy import of anthropic is intentional — avoids import cost on heuristic path
 ]
 "skills/skill-optimizer/scripts/skill_lib.py" = [
     "PLE2502", # intentional BiDi chars — this IS the blocklist being defined
@@ -62,9 +69,8 @@ ignore = [
 force-sort-within-sections = true
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.14"
 strict = true
-exclude = "^skills/"
 warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true

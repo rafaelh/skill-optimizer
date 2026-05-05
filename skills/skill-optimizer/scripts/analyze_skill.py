@@ -55,6 +55,11 @@ LARGE_SKILL_TOKENS = 1500
 MEGA_SKILL_H2_COUNT = 12
 SEVERITIES = {"fail", "warn", "info"}
 
+_REFERENCE_LINK_RE = re.compile(
+    r"\[([^\]]+)\]\((references/[^)]+\.md|assets/[^)]+|scripts/[^)]+)\)"
+)
+_GOTCHAS_HEADER_RE = re.compile(r"^#+\s*Gotchas?\b", re.MULTILINE | re.IGNORECASE)
+
 
 @dataclass
 class Issue:
@@ -83,7 +88,7 @@ def analyze(skill_dir: Path) -> list[Issue]:
         return [
             Issue(
                 "fail",
-                "skill-md-missing",
+                "analyze.skill-md.missing",
                 f"SKILL.md not found at {sanitize_for_echo(skill_md)}",
             )
         ]
@@ -93,7 +98,7 @@ def analyze(skill_dir: Path) -> list[Issue]:
         return [
             Issue(
                 "fail",
-                "frontmatter-missing",
+                "analyze.frontmatter.missing",
                 "SKILL.md is missing YAML frontmatter",
             )
         ]
@@ -110,7 +115,7 @@ def analyze(skill_dir: Path) -> list[Issue]:
     issues.append(
         Issue(
             "info",
-            "stats",
+            "analyze.stats",
             f"body = {body_lines} lines, ~{approx_tokens} tokens, {len(h2s)} "
             f"H2 sections; description = {len(desc)} chars.",
         )
@@ -127,7 +132,7 @@ def _check_description(desc: str, issues: list[Issue]) -> None:
         issues.append(
             Issue(
                 "warn",
-                "declarative-description",
+                "analyze.description.declarative",
                 f"description starts declaratively ({safe!r}). Prefer imperative "
                 f"form: 'Use this skill when...' or '<Verb> ...'.",
                 "description",
@@ -138,7 +143,7 @@ def _check_description(desc: str, issues: list[Issue]) -> None:
         issues.append(
             Issue(
                 "warn",
-                "description-no-when",
+                "analyze.description.no-trigger",
                 "description does not say *when* to use the skill. Add explicit "
                 "trigger contexts ('Use when the user wants to ...').",
                 "description",
@@ -148,7 +153,7 @@ def _check_description(desc: str, issues: list[Issue]) -> None:
         issues.append(
             Issue(
                 "warn",
-                "description-too-short-quality",
+                "analyze.description.thin",
                 f"description is only {len(desc)} chars. Effective descriptions "
                 f"list multiple trigger contexts and usually run 200-600 chars.",
                 "description",
@@ -165,7 +170,7 @@ def _check_body_size(body: str, issues: list[Issue]) -> tuple[int, int, list[str
         issues.append(
             Issue(
                 "warn",
-                "body-too-many-lines",
+                "analyze.body.lines-over-limit",
                 f"SKILL.md body is {line_count} lines (>{MAX_BODY_LINES}). Move "
                 f"detail to references/, scripts/, or assets/.",
             )
@@ -174,7 +179,7 @@ def _check_body_size(body: str, issues: list[Issue]) -> tuple[int, int, list[str
         issues.append(
             Issue(
                 "warn",
-                "body-too-many-tokens",
+                "analyze.body.tokens-over-limit",
                 f"SKILL.md body is ~{approx_tokens} tokens (>{MAX_BODY_TOKENS}). "
                 f"Apply progressive disclosure.",
             )
@@ -192,7 +197,7 @@ def _check_generic_filler(prose: str, issues: list[Issue]) -> None:
             issues.append(
                 Issue(
                     "warn",
-                    "generic-filler",
+                    "analyze.body.generic-filler",
                     f"generic filler detected: {safe!r}. Replace with concrete "
                     f"gotchas or specific procedures.",
                 )
@@ -200,13 +205,11 @@ def _check_generic_filler(prose: str, issues: list[Issue]) -> None:
 
 
 def _check_gotchas(approx_tokens: int, body: str, issues: list[Issue]) -> None:
-    if approx_tokens > LARGE_SKILL_TOKENS and not re.search(
-        r"^#+\s*Gotchas?\b", body, re.MULTILINE | re.IGNORECASE
-    ):
+    if approx_tokens > LARGE_SKILL_TOKENS and not _GOTCHAS_HEADER_RE.search(body):
         issues.append(
             Issue(
                 "info",
-                "gotchas-section-missing",
+                "analyze.body.gotchas-missing",
                 "no 'Gotchas' section. Consider adding one for non-obvious "
                 "environment-specific facts the agent would otherwise miss.",
             )
@@ -214,9 +217,7 @@ def _check_gotchas(approx_tokens: int, body: str, issues: list[Issue]) -> None:
 
 
 def _check_reference_load_triggers(body: str, issues: list[Issue]) -> None:
-    for ref_match in re.finditer(
-        r"\[([^\]]+)\]\((references/[^)]+\.md|assets/[^)]+|scripts/[^)]+)\)", body
-    ):
+    for ref_match in _REFERENCE_LINK_RE.finditer(body):
         target = ref_match.group(2)
         start = max(0, ref_match.start() - 220)
         end = min(len(body), ref_match.end() + 220)
@@ -225,7 +226,7 @@ def _check_reference_load_triggers(body: str, issues: list[Issue]) -> None:
             issues.append(
                 Issue(
                     "warn",
-                    "reference-no-load-trigger",
+                    "analyze.reference.no-trigger",
                     f"reference {sanitize_for_echo(target)!r} mentioned without "
                     f"a load trigger. Tell the agent *when* to load it (e.g., "
                     f"'Read X when Y').",
@@ -238,7 +239,7 @@ def _check_mega_skill(h2s: list[str], issues: list[Issue]) -> None:
         issues.append(
             Issue(
                 "info",
-                "mega-skill-h2-count",
+                "analyze.body.mega-skill",
                 f"{len(h2s)} H2 sections — possible mega-skill. Consider splitting "
                 f"into focused skills.",
             )
@@ -251,8 +252,8 @@ def _emit_text(skill_dir: Path, issues: list[Issue]) -> None:
 
 
 def _emit_json(skill_dir: Path, issues: list[Issue]) -> None:
-    stats_issue = next((i for i in issues if i.code == "stats"), None)
-    stats: dict = {}
+    stats_issue = next((i for i in issues if i.code == "analyze.stats"), None)
+    stats: dict[str, int] = {}
     if stats_issue:
         m = re.search(
             r"body = (\d+) lines, ~(\d+) tokens, (\d+) H2 sections; description = (\d+) chars",

@@ -1,44 +1,61 @@
 ---
 name: skill-optimizer
-description: Audit, optimize, and validate Claude skill files (SKILL.md). Use this skill when the user wants to create a new skill, improve an existing one, debug why a skill isn't activating, restructure a bloated SKILL.md, validate frontmatter against the Agent Skills specification, or apply patterns like gotchas, validation loops, and progressive disclosure. Trigger even when the user doesn't say "skill" — e.g., "this prompt file isn't activating", "rewrite my SKILL.md", "why doesn't Claude pick up my custom command", or "audit my .claude/skills directory".
+description: Audit, optimize, validate, scaffold, and trigger-eval Claude Agent Skills (SKILL.md files). Use this skill when the user wants to create a new skill, improve an existing one, debug why a skill isn't activating, restructure a bloated SKILL.md, validate frontmatter against the Agent Skills specification, run a trigger-rate eval, detect description overlap between sibling skills, audit a skill's bundled scripts, or apply patterns like gotchas, validation loops, and progressive disclosure. Trigger even when the user doesn't say "skill" — e.g., "this prompt file isn't activating", "rewrite my SKILL.md", "why doesn't Claude pick up my custom command", "scaffold a new skill", "audit my .claude/skills directory", or "test whether my description triggers reliably".
+compatibility: Designed for Claude Code. Requires Python 3.14+ (stdlib only on most paths). eval_triggers.py and optimize_description.py require the `claude` CLI on PATH. count_tokens.py uses the anthropic SDK if ANTHROPIC_API_KEY is set, else falls back to a heuristic. Scripts using PEP 723 metadata run cleanest under `uv run`.
+metadata:
+  version: "2.0"
+  author: Rafe Hart
 ---
 
 # Skill Optimizer
 
-Improve a Claude skill so it activates reliably, fits inside its token budget, and follows the Agent Skills specification.
+Improve a Claude skill so it activates reliably, fits inside its token budget, follows the Agent Skills specification, and bundles real tooling instead of asking the agent to reinvent it on every run.
 
 ## When you reach for this skill
 
 The user is asking you to:
 
-- Create a new skill from scratch
+- Scaffold a new skill from scratch
 - Audit or improve an existing skill (description, body, structure)
 - Diagnose why a skill is not triggering
 - Validate frontmatter or layout against the spec
+- Run a trigger-rate eval against a labeled query set
+- Iterate the description toward a higher validation pass rate
+- Detect description overlap between sibling skills
+- Audit a skill's bundled scripts for interface, structure, and performance issues
 
 ## Workflow
 
-### 1. Locate the skill
+### 1. Locate or scaffold the skill
 
-Find the target `SKILL.md`. Skills live under `~/.claude/skills/<name>/SKILL.md` (user) or `<repo>/.claude/skills/<name>/SKILL.md` (project). The frontmatter `name` field MUST match the parent directory name.
+If the user is **starting fresh**, run:
 
-### 2. Run the validators first
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/init_skill.py" \
+  ~/.claude/skills --name <slug> --description "<text>" --json
+```
 
-Always start with the bundled scripts to surface mechanical issues before reading the body. All three use stdlib only — no install step. Each accepts `--json` for machine-readable output and exits non-zero on FAIL-level issues.
+This produces a layout that already passes the validators: SKILL.md from `assets/templates/SKILL.md.template`, an `example.py` from `assets/templates/script.py.template`, and `references/` + `assets/` + `tests/` placeholders. Pass `--minimal` for SKILL.md only.
+
+If the skill **already exists**, find its `SKILL.md`. Skills live under `~/.claude/skills/<name>/SKILL.md` (user) or `<repo>/.claude/skills/<name>/SKILL.md` (project). The frontmatter `name` field MUST match the parent directory name.
+
+### 2. Run the static validators
+
+Always start with the bundled scripts before reading the body. All accept `--json` for machine-readable output and exit non-zero on FAIL-level issues.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/validate_skill.py" <skill-dir>
 python3 "${CLAUDE_SKILL_DIR}/scripts/analyze_skill.py" <skill-dir>
-python3 "${CLAUDE_SKILL_DIR}/scripts/recommend_scripts.py" <skill-dir>
+python3 "${CLAUDE_SKILL_DIR}/scripts/count_tokens.py" <skill-dir>/SKILL.md
 ```
 
-`${CLAUDE_SKILL_DIR}` is set by Claude Code to the directory containing this `SKILL.md`, so these commands work whether the skill is symlinked under `~/.claude/skills/`, installed via `/plugin install`, or bundled in a project's `.claude/skills/`.
+`${CLAUDE_SKILL_DIR}` resolves to the directory containing this SKILL.md.
 
-- `validate_skill.py` enforces the spec: required fields, name regex (lowercase, hyphens, no leading/trailing/consecutive hyphens, max 64 chars), description length (1–1024), name matches directory, optional field constraints, broken file references. Each issue carries a stable `code` (e.g. `name-mismatch-dir`, `description-too-long`, `broken-reference`).
-- `analyze_skill.py` flags content anti-patterns: declarative description openings, missing trigger contexts, body over 500 lines / 5000 tokens, generic filler, references introduced without a load condition. Codes: `declarative-description`, `description-no-when`, `body-too-many-lines`, `generic-filler`, `reference-no-load-trigger`.
-- `recommend_scripts.py` surfaces opportunities to *add or improve* bundled scripts (see step 5).
+- `validate_skill.py` enforces the spec: required fields, name regex (lowercase, hyphens, no leading/trailing/consecutive hyphens, max 64 chars), description length (1–1024), name matches directory, optional field constraints, broken file references. Codes follow `validate.<surface>.<concern>` (e.g. `validate.name.dir-mismatch`, `validate.description.too-long`, `validate.reference.broken`).
+- `analyze_skill.py` flags content anti-patterns: declarative description openings, missing trigger contexts, body over 500 lines / 5000 tokens, generic filler, references introduced without a load condition. Codes follow `analyze.<surface>.<concern>`.
+- `count_tokens.py` reports an exact token count via the anthropic SDK when `ANTHROPIC_API_KEY` is set, else a calibrated `len(text) / 3.5` heuristic. Use this when you want a number tighter than the bucketed thresholds in `analyze_skill.py`.
 
-Pass `--json` when chaining into other tooling. Pass `--exit-on-warn` when treating warnings as failures (CI / pre-commit).
+Pass `--exit-on-warn` when treating warnings as failures (CI / pre-commit).
 
 ### 3. Optimize the description
 
@@ -49,7 +66,7 @@ Read [references/description-guide.md](references/description-guide.md) when:
 - The user reports the skill isn't activating
 - The current description is under ~150 characters
 - The description starts with "This skill...", "A skill that...", or describes mechanics rather than user intent
-- You want to set up a trigger-rate eval
+- You're about to revise the description and want the writing rules
 
 Quick rules (full guide in the reference):
 
@@ -62,38 +79,108 @@ Quick rules (full guide in the reference):
 
 Read [references/content-patterns.md](references/content-patterns.md) before restructuring the body. Apply these rules in order:
 
-1. **Cut what the agent already knows.** If removing a paragraph wouldn't degrade behavior, delete it. No "what is a PDF" preamble.
+1. **Cut what the agent already knows.** If removing a paragraph wouldn't degrade behavior, delete it.
 2. **Convert declarations into procedures.** Replace one-shot answers with reusable methods.
-3. **Add a Gotchas section** for non-obvious environment facts (soft deletes, naming mismatches, misleading endpoints). Keep gotchas in `SKILL.md` itself — the agent must read them before hitting the situation.
+3. **Add a Gotchas section** for non-obvious environment facts. Keep gotchas in `SKILL.md` itself — the agent must read them before hitting the situation.
 4. **Provide defaults, not menus.** Pick one library/approach; mention alternatives in one line.
 5. **Match prescriptiveness to fragility.** Code review = freedom + "why". Migrations = exact command sequence with "do not modify".
 6. **Bundle scripts** for any logic the agent would otherwise reinvent each run. Put them in `scripts/`.
 7. **Apply progressive disclosure.** Keep `SKILL.md` under 500 lines / ~5000 tokens. Move detail into `references/`, `scripts/`, `assets/`. Tell the agent *when* to load each reference file.
 
-### 5. Identify scripting opportunities
+### 5. Audit bundled scripts
 
-Run `recommend_scripts.py <skill-dir>` after the body is in shape. It surfaces:
+Two complementary checks:
 
-- **`extract-procedure`** — a long bash block in `SKILL.md` (≥6 lines) that the agent will re-derive every run; extract into `scripts/<name>.py` and replace with a one-line invocation.
-- **`missing-argparse`** — a bundled script with `if __name__` or `sys.argv` usage but no `argparse.ArgumentParser`; agents can't discover its interface via `--help`.
-- **`add-json-output`** — a bundled script without a `--json` flag; structured output is easier for agents to consume than free-form text.
-- **`add-pep723-metadata`** — a script imports non-stdlib modules without declaring deps via [PEP 723](https://peps.python.org/pep-0723/); `uv run scripts/<name>.py` would fail to install them.
+**5a. Interface and structure.**
 
-Apply the suggested fixes only when they earn their keep. The skill-optimizer's own conventions (lifted from <https://agentskills.io/skill-creation/using-scripts>):
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/recommend_scripts.py" <skill-dir>
+```
+
+Surfaces opportunities to add or improve scripts:
+
+- `recommend.script.extract-procedure` — long bash blocks (≥6 lines) that should become scripts
+- `recommend.script.missing-argparse` — entry-point scripts with no `argparse.ArgumentParser`
+- `recommend.script.missing-json` — bundled scripts without a `--json` flag
+- `recommend.script.missing-pep723` — non-stdlib imports without [PEP 723](https://peps.python.org/pep-0723/) inline metadata
+
+**5b. Implementation quality.**
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/perf_check.py" <skill-dir>/scripts/ --json
+```
+
+Static analysis for Python performance anti-patterns: string concatenation in loops, regex recompiled per iteration, `.append()` in tight loops, repeated subscripts, exception-as-control-flow, pandas `.iterrows()`, etc. Skip a script's findings only with conscious justification.
+
+The skill-optimizer's own conventions for bundled scripts (lifted from [agentskills.io/skill-creation/using-scripts](https://agentskills.io/skill-creation/using-scripts)):
 
 - Stdout = data; stderr = diagnostics. Never mix.
+- All scripts take `--json` so agents can `json.load()` the output.
 - Reject ambiguous input with a clear error rather than guessing.
 - Add `--dry-run` for stateful or destructive operations.
 - Sanitize echoed user content (ANSI escapes, control characters) when scripts read SKILL.md or vault data — see `scripts/skill_lib.py::sanitize_for_echo`.
-- Pin output size; default to summary, support `--offset` for paginated detail.
+- Pin output size; default to summary, support pagination flags for detail.
 
-### 6. Re-validate
+### 6. Cross-skill overlap check
 
-Run all three scripts again. Iterate until `validate_skill.py` passes, `analyze_skill.py` warnings are addressed (or consciously ignored), and `recommend_scripts.py` either reports nothing material or you've made conscious decisions about each remaining opportunity.
+When the skill lives alongside others, run:
 
-### 7. Optional: trigger eval
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/detect_skill_overlap.py" ~/.claude/skills/ --json
+```
 
-If the user wants to verify activation against realistic prompts, follow the train/validation split workflow in [references/description-guide.md](references/description-guide.md).
+Or for a single skill against siblings:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/detect_skill_overlap.py" <skill-dir> \
+  --against ~/.claude/skills/
+```
+
+Read [references/cross-skill-design.md](references/cross-skill-design.md) when:
+
+- The script flags a pair above the threshold
+- You're scaffolding a skill that overlaps an existing one
+- A user reports the wrong skill activated for their request
+
+### 7. Trigger eval and description optimization
+
+This is the most direct way to know whether a description actually works.
+
+**Build a labeled query set.** When starting from scratch, read [assets/templates/eval-queries.json.template](assets/templates/eval-queries.json.template) for the file shape and ~12 worked examples covering positive/negative/near-miss patterns. Before running the eval, validate the query set against [assets/schemas/eval-queries.schema.json](assets/schemas/eval-queries.schema.json) if you've added new fields or want machine confirmation that the structure is right.
+
+**Run a single eval round:**
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/eval_triggers.py" \
+  --queries queries.json --skill-name <name> --runs 3 --json
+```
+
+**Iterate the description automatically:**
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/optimize_description.py" \
+  <skill-dir> --queries queries.json --rounds 3 --candidates 3 --json
+```
+
+Default is propose-only; pass `--apply` to write the winner to SKILL.md (creates `SKILL.md.bak`).
+
+Read [references/evaluation.md](references/evaluation.md) when:
+
+- Designing the query set (positive/negative balance, near-misses)
+- Interpreting eval output (what counts as a pass)
+- The optimization loop plateaus and you need to diagnose the queries themselves
+
+### 8. Re-validate
+
+Run all the static validators again. Iterate until `validate_skill.py` passes, `analyze_skill.py` warnings are addressed (or consciously ignored), `recommend_scripts.py` and `perf_check.py` either report nothing material or you've made conscious decisions about each remaining opportunity, and `detect_skill_overlap.py` shows no unintended collisions.
+
+## Gotchas
+
+- The `claude -p --output-format json` schema may shift between Claude Code versions. If `eval_triggers.py` reports zero triggers across every query in a previously-passing eval, suspect a schema change before assuming the description regressed.
+- `optimize_description.py` is nondeterministic — running it twice on the same inputs can produce different "winning" descriptions. The `.bak` file is the safe rollback path; git is the safer one.
+- `count_tokens.py` returns `exact: false` whenever it falls back to the heuristic. The agent should treat heuristic counts as ±20% — fine for "is this over budget" decisions, not fine for fine-grained budget arithmetic.
+- `detect_skill_overlap.py` flags pairs above the threshold; it does not prove a misfire. Use the `shared_keywords` field as the actionable signal — three or more shared domain keywords is the real overlap.
+- The `name` field MUST equal the parent directory name. Renaming a skill means renaming both the directory and the frontmatter, in lockstep, or `validate_skill.py` reports `validate.name.dir-mismatch`.
 
 ## Anti-patterns to flag immediately
 
@@ -105,18 +192,27 @@ If the user wants to verify activation against realistic prompts, follow the tra
 - Reference files mentioned without a load trigger ("see references/ for details") — agent won't load them.
 - `name`: uppercase, leading/trailing hyphen, consecutive hyphens, or mismatch with directory.
 - Bundled scripts that hardcode secrets or `cd` into absolute paths outside the skill.
-- Bundled scripts that lack `argparse` (so `--help` is missing) or print free-form text only (so agents can't structure-parse). Run `recommend_scripts.py` to find them.
+- Bundled scripts that lack `argparse` (so `--help` is missing) or print free-form text only (so agents can't structure-parse).
 - Scripts that echo SKILL.md content verbatim without sanitization — ANSI escapes and control characters in untrusted skill files can confuse the calling agent or terminal.
+- Two skills with bag-of-words cosine ≥ 0.5 over their descriptions and no explicit "NOT for X — see Y" disambiguator.
 
 ## Platform notes
 
-The scripts work on macOS, Linux, and Windows (Python 3.10+). On Windows:
+The scripts work on macOS, Linux, and Windows (Python 3.14+). On Windows:
 
 - Use `python` or `py -3` instead of `python3` if your install lacks the `python3` alias.
 - The `~` in paths is expanded by Python via `Path.expanduser()`, so command-line args like `~/.claude/skills/...` work even from `cmd.exe`.
 - All file I/O is explicit UTF-8.
 - Symlink-based tests are auto-skipped if your account lacks symlink privileges (no Developer Mode / not admin); other tests run normally.
 
+For PEP 723 scripts (`count_tokens.py` is the only current one), invoking via `uv run scripts/<name>.py` resolves the dependencies automatically. Without `uv`, the script falls back to its heuristic path when an import fails.
+
 ## Specification quick reference
 
-Required frontmatter: `name`, `description`. Optional: `license`, `compatibility` (≤500 chars), `metadata`, `allowed-tools`. Read [references/specification.md](references/specification.md) when you need the full field constraints, valid `name` examples, or directory layout rules.
+Required frontmatter: `name`, `description`. Optional: `license`, `compatibility` (≤500 chars), `metadata`, `allowed-tools`. The full JSON Schema lives at [assets/schemas/frontmatter.schema.json](assets/schemas/frontmatter.schema.json).
+
+Read [references/specification.md](references/specification.md) when:
+
+- You need the full field constraints
+- You're checking valid `name` examples
+- You're reviewing directory layout rules

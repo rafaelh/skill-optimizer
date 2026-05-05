@@ -1,0 +1,65 @@
+---
+name: {{name}}
+description: {{description}}
+metadata:
+  version: "0.1"
+---
+
+# {{display_name}}
+
+<!--
+Replace this comment block with one or two sentences that state the goal of
+the skill from the user's perspective. The agent already loaded the description
+to decide to activate; the body answers "what do I do now?".
+-->
+
+## When you reach for this skill
+
+The user is asking you to:
+
+- <task 1 — verb-first, concrete>
+- <task 2>
+- <task 3>
+
+## Workflow
+
+### 1. <First step name>
+
+<One paragraph telling the agent what to do, what tool/script to invoke, and
+what success looks like. Be specific. Replace generic verbs ("handle", "process")
+with the actual operation.>
+
+```bash
+# Example invocation — keep these tight; long blocks belong in scripts/
+python3 "${CLAUDE_SKILL_DIR}/scripts/<name>.py" --json
+```
+
+### 2. <Second step name>
+
+Read [references/<topic>.md](references/<topic>.md) when:
+
+- <load trigger 1>
+- <load trigger 2>
+
+<!-- Critical rule: every reference link MUST have a load trigger nearby. -->
+
+### 3. <Third step name>
+
+<…>
+
+## Gotchas
+
+<!--
+Concrete corrections to mistakes the agent will make without being told. Not
+generic advice. If you remove a gotcha and the agent does the wrong thing,
+put it back. If removing it changes nothing, it didn't belong here.
+-->
+
+- <gotcha 1 — environment-specific fact, naming mismatch, soft-delete, etc.>
+- <gotcha 2>
+- <gotcha 3>
+
+## Anti-patterns to flag
+
+- <anti-pattern 1>
+- <anti-pattern 2>

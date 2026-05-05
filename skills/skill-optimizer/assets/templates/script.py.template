@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   # Add non-stdlib deps here. Empty list means stdlib-only and `uv run`
+#   # works without resolving anything.
+# ]
+# ///
+"""<one-line summary — what this script does and when to run it>.
+
+<2-4 line expanded summary. Mention inputs (file/stdin), outputs (stdout/JSON),
+side effects (writes/network), and any environment requirements.>
+
+Usage:
+    {{script_name}}.py <input> [--json] [--dry-run]
+
+Exit codes:
+    0   success
+    1   one or more issues found (or operation declined under --dry-run)
+    2   bad invocation (missing path, unreadable file, etc.)
+"""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import asdict, dataclass
+import json
+from pathlib import Path
+import sys
+
+# Convention: shared helpers live in skill_lib.py (frontmatter parsing,
+# sanitize_for_echo). Import from there rather than duplicating logic.
+# from skill_lib import sanitize_for_echo
+
+
+@dataclass
+class Result:
+    """Structured output unit — fields end up in JSON verbatim."""
+    code: str
+    message: str
+    severity: str = "info"  # "fail" | "warn" | "info"
+
+
+def run(target: Path) -> list[Result]:
+    """Core logic. Pure where possible — easier to unit-test."""
+    results: list[Result] = []
+    # ... implement here ...
+    return results
+
+
+def _emit_text(results: list[Result]) -> None:
+    for r in results:
+        prefix = {"fail": "FAIL", "warn": "WARN"}.get(r.severity, "INFO")
+        print(f"{prefix}: [{r.code}] {r.message}")
+
+
+def _emit_json(target: Path, results: list[Result]) -> None:
+    payload = {
+        "target": str(target),
+        "results": [asdict(r) for r in results],
+        "summary": {
+            "total": len(results),
+            "fail": sum(1 for r in results if r.severity == "fail"),
+            "warn": sum(1 for r in results if r.severity == "warn"),
+        },
+    }
+    print(json.dumps(payload, indent=2))
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__.split("\n", 1)[0] if __doc__ else "",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("target", help="Path to the file or directory to operate on")
+    parser.add_argument(
+        "--json", dest="as_json", action="store_true",
+        help="Emit machine-readable JSON on stdout.",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Show what would change without writing.",
+    )
+    args = parser.parse_args(argv)
+
+    target = Path(args.target).expanduser().resolve()
+    if not target.exists():
+        print(f"{parser.prog}: path does not exist: {target}", file=sys.stderr)
+        return 2
+
+    results = run(target)
+    if args.as_json:
+        _emit_json(target, results)
+    else:
+        _emit_text(results)
+
+    return 1 if any(r.severity == "fail" for r in results) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -22,14 +22,17 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 import re
 import sys
+from typing import TYPE_CHECKING, Any
 
 from skill_lib import sanitize_for_echo
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 LONG_BASH_LINES = 6  # blocks with this many or more non-empty lines flagged
 SCRIPT_EXTS = (".py",)
@@ -51,14 +54,14 @@ class Opportunity:
     severity: str  # "info" | "warn"
 
 
-def recommend(skill_dir: Path) -> list[dict]:
+def recommend(skill_dir: Path) -> list[dict[str, Any]]:
     skill_dir = Path(skill_dir)
     opps: list[Opportunity] = []
     skill_md = skill_dir / "SKILL.md"
     if not skill_md.exists():
         opps.append(
             Opportunity(
-                kind="skill-md-missing",
+                kind="recommend.skill-md.missing",
                 where=str(skill_md),
                 title="SKILL.md not found",
                 why="Cannot scan a skill without a SKILL.md.",
@@ -100,7 +103,7 @@ def _scan_bash_blocks(body: str, skill_md: Path, opps: list[Opportunity]) -> Non
         snippet = sanitize_for_echo(non_empty[0], max_len=80)
         opps.append(
             Opportunity(
-                kind="extract-procedure",
+                kind="recommend.script.extract-procedure",
                 where=f"{skill_md.name}:{start_line}-{end_line}",
                 title=f"Long bash block ({len(non_empty)} lines)",
                 why=(
@@ -182,7 +185,7 @@ def _check_argparse(text: str, rel: str, opps: list[Opportunity]) -> None:
         return
     opps.append(
         Opportunity(
-            kind="missing-argparse",
+            kind="recommend.script.missing-argparse",
             where=rel,
             title="Script lacks argparse",
             why=(
@@ -209,7 +212,7 @@ def _check_json_output(text: str, rel: str, opps: list[Opportunity]) -> None:
         return
     opps.append(
         Opportunity(
-            kind="add-json-output",
+            kind="recommend.script.missing-json",
             where=rel,
             title="Script does not expose --json",
             why=(
@@ -238,7 +241,7 @@ def _check_pep723(text: str, rel: str, local_modules: set[str], opps: list[Oppor
         return
     opps.append(
         Opportunity(
-            kind="add-pep723-metadata",
+            kind="recommend.script.missing-pep723",
             where=rel,
             title="Non-stdlib imports without PEP 723 inline metadata",
             why=(
@@ -255,7 +258,7 @@ def _check_pep723(text: str, rel: str, local_modules: set[str], opps: list[Oppor
     )
 
 
-def _emit_text(opps: list[dict]) -> None:
+def _emit_text(opps: list[dict[str, Any]]) -> None:
     if not opps:
         print("no opportunities found")
         return
@@ -266,7 +269,7 @@ def _emit_text(opps: list[dict]) -> None:
         print(f"  suggestion: {o['suggestion']}")
 
 
-def _emit_json(skill_dir: Path, opps: list[dict]) -> None:
+def _emit_json(skill_dir: Path, opps: list[dict[str, Any]]) -> None:
     by_kind: Counter[str] = Counter(o["kind"] for o in opps)
     payload = {
         "skill_dir": str(skill_dir),

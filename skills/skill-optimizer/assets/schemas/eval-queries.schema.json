@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentskills.io/schemas/eval-queries.schema.json",
+  "title": "Skill Trigger Eval Query Set",
+  "description": "Input format for eval_triggers.py. Array of labeled user queries used to measure how reliably a skill triggers (or stays out of the way).",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "required": ["query", "should_trigger"],
+    "additionalProperties": false,
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Realistic user prompt. Vary phrasing, explicitness, detail, and complexity across the set."
+      },
+      "should_trigger": {
+        "type": "boolean",
+        "description": "Whether the skill ought to activate for this prompt. Negatives should include near-misses (same keywords, different actual need)."
+      },
+      "notes": {
+        "type": "string",
+        "description": "Optional rationale — why this query is in the set. Useful when re-tuning."
+      },
+      "split": {
+        "enum": ["train", "validation"],
+        "description": "Optional explicit split assignment. If omitted, eval_triggers.py partitions per --train-split."
+      }
+    }
+  }
+}

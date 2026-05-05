@@ -53,7 +53,7 @@ _FOLDED_MARKERS = (">", "|", ">-", "|-", ">+", "|+")
 _FENCE_END_RE = re.compile(r"\r?\n---(?:\r?\n|\Z)")
 
 
-def parse_frontmatter(text: str) -> tuple[dict | None, str]:
+def parse_frontmatter(text: str) -> tuple[dict[str, Any] | None, str]:
     """Return (frontmatter_dict, body) or (None, full_text) if no frontmatter.
 
     Handles a small subset of YAML sufficient for SKILL.md frontmatter:
@@ -77,8 +77,8 @@ def parse_frontmatter(text: str) -> tuple[dict | None, str]:
     return _parse_simple_yaml(fm_text), body
 
 
-def _parse_simple_yaml(text: str) -> dict:
-    result: dict = {}
+def _parse_simple_yaml(text: str) -> dict[str, Any]:
+    result: dict[str, Any] = {}
     lines = text.splitlines()
     i = 0
     while i < len(lines):
@@ -102,7 +102,7 @@ def _parse_simple_yaml(text: str) -> dict:
             result[key] = sep.join(buf)
             continue
         if value == "":
-            nested: dict = {}
+            nested: dict[str, str] = {}
             i += 1
             while i < len(lines) and (lines[i].startswith("  ") or not lines[i].strip()):
                 if lines[i].strip():
@@ -110,7 +110,7 @@ def _parse_simple_yaml(text: str) -> dict:
                     if nm:
                         nested[nm.group(1)] = _strip_quotes(nm.group(2).strip())
                 i += 1
-            result[key] = nested if nested else ""
+            result[key] = nested or ""
             continue
         result[key] = _strip_quotes(value)
         i += 1
@@ -146,7 +146,7 @@ def sanitize_for_echo(value: Any, max_len: int = 200) -> str:
     value = _ANSI_RE.sub("", value)
     cleaned: list[str] = []
     for ch in value:
-        if ch in ("\n", "\t"):
+        if ch in {"\n", "\t"}:
             cleaned.append(ch)
         elif ord(ch) < 0x20 or ord(ch) == 0x7F:
             cleaned.append(f"\\x{ord(ch):02x}")

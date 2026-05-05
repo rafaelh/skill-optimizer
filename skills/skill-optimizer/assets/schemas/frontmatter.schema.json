@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentskills.io/schemas/frontmatter.schema.json",
+  "title": "Agent Skill Frontmatter",
+  "description": "YAML frontmatter shape for SKILL.md files (Agent Skills specification).",
+  "type": "object",
+  "required": ["name", "description"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Skill identifier. Lowercase a-z, 0-9, single hyphens. No leading/trailing/consecutive hyphens. Must equal the parent directory name."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "What the skill does AND when to use it. Imperative phrasing. The single field that determines whether the skill triggers."
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "description": "License identifier (SPDX) or path to a bundled license file."
+    },
+    "compatibility": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Environment requirements: target product, system packages, network access, Python version, optional CLIs."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Free-form key/value store. Use unique key names to avoid conflicts.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "allowed-tools": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EXPERIMENTAL. Space-separated list of pre-approved tools. Support varies by client."
+    }
+  }
+}
