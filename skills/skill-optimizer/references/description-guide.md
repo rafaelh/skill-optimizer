@@ -11,13 +11,32 @@ Agents use progressive disclosure: at startup they load only `name` + `descripti
 
 One nuance: agents typically only consult skills for tasks they can't easily handle alone. "Read this PDF" may not trigger a PDF skill even with a perfect description, because the agent can do it directly. Specialized knowledge, unfamiliar APIs, and uncommon formats are where descriptions earn their keep.
 
+## `description` vs `when_to_use`
+
+Claude Code supports a companion field `when_to_use` for supplementary trigger context. The two fields are appended together and shown in the skill listing, **truncated at 1,536 characters combined**. Use `description` for the core identity of the skill; use `when_to_use` for additional trigger phrases, aliases, or domain synonyms that would make `description` feel padded:
+
+```yaml
+description: >
+  Analyze CSV and tabular data — compute statistics, add derived columns,
+  generate charts, and clean messy data. Use when the user has a CSV, TSV,
+  or Excel file and wants to explore, transform, or visualize it.
+when_to_use: >
+  Trigger even without explicit "CSV": spreadsheet, tabular data, pivot
+  table, column calculations, data cleaning, bulk row operations.
+```
+
+If your `description` is already under ~800 chars and reads clearly, keep everything there. Only split into `when_to_use` if the description would otherwise feel bloated with synonyms and alternate phrasings.
+
+**Hard limit for `description` alone: 1,024 chars** (enforced by `validate_skill.py`). The combined listing truncation at 1,536 chars is a display concern, not a validation concern.
+
 ## Writing rules
 
 - **Imperative phrasing.** "Use this skill when..." not "This skill does...". The agent is choosing whether to act — tell it when to act.
 - **User intent, not implementation.** Match against what users say, not what the skill does internally.
 - **Be pushy.** Explicitly list triggering contexts, including ones where the user doesn't name the domain ("even if they don't explicitly mention 'CSV'").
-- **Concise.** A few sentences to a short paragraph. Hard limit 1024 chars; useful range usually 200–600.
+- **Concise.** A few sentences to a short paragraph. Hard limit 1024 chars for `description`; useful range usually 200–600.
 - **Include keywords** that real users would say (file extensions, tool names, problem statements).
+- **Put the highest-signal content first.** Both `description` and `when_to_use` are truncated in the listing at 1,536 chars combined — front-load the words that most clearly distinguish your skill.
 
 ## Before / after
 

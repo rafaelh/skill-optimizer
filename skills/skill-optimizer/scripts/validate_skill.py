@@ -35,12 +35,26 @@ MIN_DESCRIPTION_WARN = 60
 MAX_COMPATIBILITY = 500
 ALLOWED_KEYS = frozenset(
     {
+        # agentskills.io base spec
         "name",
         "description",
         "license",
         "compatibility",
         "metadata",
         "allowed-tools",
+        # Claude Code extensions
+        "when_to_use",
+        "argument-hint",
+        "arguments",
+        "disable-model-invocation",
+        "user-invocable",
+        "model",
+        "effort",
+        "context",
+        "agent",
+        "hooks",
+        "paths",
+        "shell",
     }
 )
 

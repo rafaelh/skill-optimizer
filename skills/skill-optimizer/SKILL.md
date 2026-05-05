@@ -2,6 +2,8 @@
 name: skill-optimizer
 description: Audit, optimize, validate, scaffold, and trigger-eval Claude Agent Skills (SKILL.md files). Use this skill when the user wants to create a new skill, improve an existing one, debug why a skill isn't activating, restructure a bloated SKILL.md, validate frontmatter against the Agent Skills specification, run a trigger-rate eval, detect description overlap between sibling skills, audit a skill's bundled scripts, or apply patterns like gotchas, validation loops, and progressive disclosure. Trigger even when the user doesn't say "skill" — e.g., "this prompt file isn't activating", "rewrite my SKILL.md", "why doesn't Claude pick up my custom command", "scaffold a new skill", "audit my .claude/skills directory", or "test whether my description triggers reliably".
 compatibility: Designed for Claude Code. Requires Python 3.14+ (stdlib only on most paths). eval_triggers.py and optimize_description.py require the `claude` CLI on PATH. count_tokens.py uses the anthropic SDK if ANTHROPIC_API_KEY is set, else falls back to a heuristic. Scripts using PEP 723 metadata run cleanest under `uv run`.
+effort: high
+allowed-tools: Bash(python3 *) Read Edit Write
 metadata:
   version: "2.0"
   author: Rafe Hart
@@ -209,10 +211,15 @@ For PEP 723 scripts (`count_tokens.py` is the only current one), invoking via `u
 
 ## Specification quick reference
 
-Required frontmatter: `name`, `description`. Optional: `license`, `compatibility` (≤500 chars), `metadata`, `allowed-tools`. The full JSON Schema lives at [assets/schemas/frontmatter.schema.json](assets/schemas/frontmatter.schema.json).
+**Base spec** (`name`, `description` required; optional: `license`, `compatibility` ≤500 chars, `metadata`, `allowed-tools`).
+
+**Claude Code extensions** (all optional): `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`, `user-invocable`, `model`, `effort`, `context`, `agent`, `hooks`, `paths`, `shell`.
+
+The full JSON Schema lives at [assets/schemas/frontmatter.schema.json](assets/schemas/frontmatter.schema.json).
 
 Read [references/specification.md](references/specification.md) when:
 
-- You need the full field constraints
-- You're checking valid `name` examples
+- You need the full field constraints or the invocation-control matrix
+- You're checking valid `name` examples or string substitutions (`$ARGUMENTS`, `${CLAUDE_SKILL_DIR}`)
+- You're using dynamic context injection (`` !`command` `` syntax) or `context: fork`
 - You're reviewing directory layout rules
