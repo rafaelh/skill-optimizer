@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "skill-optimizer"
+version = "0.1.0"
+requires-python = ">=3.14"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+    "S",    # flake8-bandit (security)
+    "PTH",  # flake8-use-pathlib
+    "PERF", # perflint
+    "TRY",  # tryceratops
+    "LOG",  # flake8-logging
+    "G",    # flake8-logging-format
+    "PIE",  # flake8-pie
+    "T20",  # flake8-print
+    "ERA",  # eradicate (commented-out code)
+    "PL",   # pylint
+]
+ignore = [
+    "S102",   # use of exec — intentional in profile_script
+    "T201",   # print — this is a CLI tool
+    "TRY003", # long exception messages
+    "PLR2004", # magic value comparisons
+    "PLR0912", # too many branches — AST visitors are inherently branchy
+    "PLR0913", # too many arguments
+]
+
+[tool.ruff.lint.per-file-ignores]
+"perf_check.py" = [
+    "ERA001", # commented-out code — noqa comments are intentional
+]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = false   # pstats.Stats.stats is untyped; suppress globally
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+show_error_codes = true
