@@ -207,7 +207,7 @@ def _generate_candidates(
         f"{MAX_DESCRIPTION} chars. Output ONLY the candidates separated by '==='. "
         "No preamble, no numbering."
     )
-    result = subprocess.run(  # noqa: S603 - claude_bin is validated via shutil.which
+    result = subprocess.run(
         [claude_bin, "-p", prompt],
         capture_output=True,
         text=True,

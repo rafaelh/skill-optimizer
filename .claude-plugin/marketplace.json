@@ -7,8 +7,14 @@
   "plugins": [
     {
       "name": "skill-optimizer",
-      "description": "Audit, optimize, and validate Claude skill files (SKILL.md)",
-      "source": "./",
+      "description": "Audit, optimize, validate, scaffold, and trigger-eval Claude Agent Skills (SKILL.md files)",
+      "source": "./skills/skill-optimizer",
+      "category": "development"
+    },
+    {
+      "name": "agent-tool-builder",
+      "description": "Build and review Python scripts intended to be called by AI agents as tools",
+      "source": "./skills/agent-tool-builder",
       "category": "development"
     }
   ]

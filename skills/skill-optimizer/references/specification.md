@@ -36,14 +36,14 @@ metadata:
 
 ### Base spec (agentskills.io)
 
-| Field           | Required | Constraints                                                                                                       |
-| --------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
-| `name`          | Yes      | 1–64 chars. Lowercase a–z, 0–9, hyphens. No leading/trailing/consecutive hyphens. Must match directory name.      |
-| `description`   | Yes      | 1–1024 chars. Says what the skill does AND when to use it.                                                        |
-| `license`       | No       | License name or path to bundled license file.                                                                     |
-| `compatibility` | No       | 1–500 chars. Environment requirements (intended product, system packages, network access).                        |
-| `metadata`      | No       | Map of string keys → string values. Use unique key names to avoid conflicts.                                      |
-| `allowed-tools` | No       | Tools Claude can use without asking permission when this skill is active.                                         |
+| Field | Required | Constraints |
+|-----------------|-----|--------------------------------------------------------------------------------------------|
+| `name` | Yes | 1–64 chars. Lowercase a–z, 0–9, hyphens. No leading/trailing/consecutive hyphens. Must match directory name. |
+| `description`   | Yes | 1–1024 chars. Says what the skill does AND when to use it.                                 |
+| `license`       | No  | License name or path to bundled license file.                                              |
+| `compatibility` | No  | 1–500 chars. Environment requirements (intended product, system packages, network access). |
+| `metadata`      | No  | Map of string keys → string values. Use unique key names to avoid conflicts.               |
+| `allowed-tools` | No  | Tools Claude can use without asking permission when this skill is active.                  |
 
 ### Claude Code extensions
 
@@ -65,18 +65,18 @@ metadata:
 **Invocation matrix:**
 
 | Frontmatter                      | User can invoke | Claude can invoke |
-| -------------------------------- | --------------- | ----------------- |
+|----------------------------------|-----------------|-------------------|
 | (default)                        | Yes             | Yes               |
 | `disable-model-invocation: true` | Yes             | No                |
 | `user-invocable: false`          | No              | Yes               |
 
 ### `name` examples
 
-| Valid              | Invalid              | Reason                          |
-| ------------------ | -------------------- | ------------------------------- |
-| `pdf-processing`   | `PDF-Processing`     | uppercase                       |
-| `data-analysis`    | `-pdf`               | leading hyphen                  |
-| `code-review`      | `pdf--processing`    | consecutive hyphens             |
+| Valid            | Invalid           | Reason              |
+|------------------|-------------------|---------------------|
+| `pdf-processing` | `PDF-Processing`  | uppercase           |
+| `data-analysis`  | `-pdf`            | leading hyphen      |
+| `code-review`    | `pdf--processing` | consecutive hyphens |
 
 ### `description` and `when_to_use`
 
@@ -100,15 +100,15 @@ description: Helps with CSVs.
 
 Available anywhere in the skill body:
 
-| Variable               | Expands to                                                                                     |
-| ---------------------- | ---------------------------------------------------------------------------------------------- |
-| `$ARGUMENTS`           | All arguments passed at invocation. Appended as `ARGUMENTS: <value>` if not present.          |
-| `$ARGUMENTS[N]`        | Specific argument by 0-based index.                                                            |
-| `$N`                   | Shorthand for `$ARGUMENTS[N]`.                                                                 |
-| `$name`                | Named argument declared in `arguments` frontmatter (maps to positions in order).              |
-| `${CLAUDE_SESSION_ID}` | Current session ID. Useful for per-session log files.                                          |
-| `${CLAUDE_EFFORT}`     | Current effort level (`low` / `medium` / `high` / `xhigh` / `max`).                          |
-| `${CLAUDE_SKILL_DIR}`  | Absolute path to the skill's directory. Use this to reference bundled scripts portably.       |
+| Variable               | Expands to                                                                              |
+|------------------------|-----------------------------------------------------------------------------------------|
+| `$ARGUMENTS`           | All arguments passed at invocation. Appended as `ARGUMENTS: <value>` if not present.    |
+| `$ARGUMENTS[N]`        | Specific argument by 0-based index.                                                     |
+| `$N`                   | Shorthand for `$ARGUMENTS[N]`.                                                          |
+| `$name`                | Named argument declared in `arguments` frontmatter (maps to positions in order).        |
+| `${CLAUDE_SESSION_ID}` | Current session ID. Useful for per-session log files.                                   |
+| `${CLAUDE_EFFORT}`     | Current effort level (`low` / `medium` / `high` / `xhigh` / `max`).                     |
+| `${CLAUDE_SKILL_DIR}`  | Absolute path to the skill's directory. Use this to reference bundled scripts portably. |
 
 **`${CLAUDE_SKILL_DIR}` is how bundled scripts stay portable across install locations.** Always use it instead of hardcoding paths:
 
@@ -168,7 +168,7 @@ Avoid deeply nested reference chains.
 ## Progressive disclosure layers
 
 | Layer        | Token budget           | When loaded                              |
-| ------------ | ---------------------- | ---------------------------------------- |
+|--------------|------------------------|------------------------------------------|
 | Metadata     | ~100 (name + desc)     | At startup, for all skills               |
 | Instructions | < 5000 (SKILL.md body) | When the skill activates                 |
 | Resources    | as needed              | When SKILL.md or the agent references it |

@@ -15,13 +15,13 @@ Read this guide when:
 
 The strongest defense against overlap is scope discipline. A skill should encapsulate **one coherent unit of work**:
 
-| Scope | Verdict |
-|---|---|
-| "Analyze CSV files" | One unit ✓ |
+| Scope                                         | Verdict                                                       |
+|-----------------------------------------------|---------------------------------------------------------------|
+| "Analyze CSV files"                           | One unit ✓                                                    |
 | "Analyze CSV files and administer the database that stores them" | Two units ✗ — split |
 | "Generate, analyze, and email weekly reports" | Three units (sometimes ✓ if always run together as one workflow, often ✗) |
-| "Review code for security issues" | One unit ✓ |
-| "Review code, run linters, and refactor" | Borderline — depends on whether your team uses these together |
+| "Review code for security issues"             | One unit ✓                                                    |
+| "Review code, run linters, and refactor"      | Borderline — depends on whether your team uses these together |
 
 Too narrow → multiple skills load for one task, with overhead and conflicting instructions. Too broad → hard to activate precisely. When in doubt, split: it's easier to bundle two related skills via a higher-level skill that delegates than to extract one from a monolith.
 

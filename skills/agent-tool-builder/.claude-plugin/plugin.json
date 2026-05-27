@@ -1,0 +1,6 @@
+{
+  "name": "agent-tool-builder",
+  "description": "Build and review Python scripts intended to be called by AI agents as tools",
+  "version": "0.7.0",
+  "author": { "name": "Rafe Hart" }
+}

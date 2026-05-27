@@ -7,9 +7,13 @@
         \/     \/                      \/|__|                 \/         \/    \/
 ```
 
-A Claude Code skill that builds, audits, and improves other Claude Agent Skills. Uses the [agentskills.io](https://agentskills.io/) specification. It incorporates anthropic's guidance, and content from their skill-builder as well.
+A Claude Code plugin marketplace with two skills for building and maintaining high-quality AI agent tooling. Uses the [agentskills.io](https://agentskills.io/) specification.
 
-## What it does
+## Skills
+
+### skill-optimizer
+
+Audits, optimizes, validates, scaffolds, and trigger-evals Claude Agent Skills (SKILL.md files).
 
 **Validation and analysis**
 
@@ -33,9 +37,7 @@ A Claude Code skill that builds, audits, and improves other Claude Agent Skills.
 - Checks helper scripts for performance anti-patterns (AST static analysis + optional cProfile runtime profiling)
 - Counts tokens via the Anthropic SDK when available, heuristic fallback otherwise
 
-## Scripts
-
-All scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machine-readable output.
+Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machine-readable output.
 
 | Script | Purpose |
 |---|---|
@@ -49,20 +51,52 @@ All scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for ma
 | `count_tokens.py` | Token counter; exact via Anthropic SDK, heuristic fallback |
 | `perf_check.py` | AST-based performance checker + optional cProfile profiling |
 
+---
+
+### agent-tool-builder
+
+Builds and reviews Python scripts intended to be called by AI agents as tools. Enforces a standard interface contract (structured JSON output, predictable exit codes, `--format`, `--quiet`, `--dry-run`) and catches performance anti-patterns before they cost agent round-trips.
+
+**Design interview**
+
+- Runs a decision-forcing interview to pin down the tool's data model, operations, flag set, JSON output shape, and failure modes before writing a line of code
+
+**Interface contract enforcement**
+
+- Validates mandatory flags (`--format`, `--quiet`), conditional flags (`--dry-run`, `--limit`, `--cursor`), exit code conventions, and stderr discipline
+- Ensures output is parseable JSON by default — agents should never need to parse human-readable text
+
+**Scaffolding**
+
+- Scaffolds new agent tools from a PEP 723 template with argparse, `--format json/text/csv`, structured error output, and stub tests
+
+**Performance auditing**
+
+- Detects O(n²) string concatenation, recompiled regexes, and list-membership anti-patterns via AST analysis + optional cProfile profiling
+
+Scripts live in `skills/agent-tool-builder/scripts/` and accept `--json` for machine-readable output.
+
+| Script | Purpose |
+|---|---|
+| `validate_agent_tool.py` | Interface contract validation — flags, exit codes, output shape |
+| `perf_check.py` | AST-based performance checker + optional cProfile profiling |
+| `init_tool.py` | Scaffold a new agent tool from the bundled PEP 723 template |
+
 ## Installing
 
-This repo is a Claude Code plugin marketplace. From inside Claude Code, add the marketplace and install the skill:
+This repo is a Claude Code plugin marketplace. From inside Claude Code, add the marketplace and install either or both skills:
 
 ```
 /plugin marketplace add rafaelh/skill-optimizer
 /plugin install skill-optimizer@rafaelh-skill-optimizer
+/plugin install agent-tool-builder@rafaelh-skill-optimizer
 /reload-plugins
 ```
 
-Once installed, the `skill-optimizer` skill activates automatically when you ask Claude to create, audit, or fix a skill — e.g. "audit my SKILL.md", "why isn't this skill activating?", "scaffold a new skill called search-jira".
+Once installed, skills activate automatically based on context — `skill-optimizer` when you ask Claude to audit or scaffold a SKILL.md; `agent-tool-builder` when you ask Claude to write or improve a script an agent will call.
 
 ## Requirements
 
 - Python 3.14+
-- Claude Code CLI (for trigger evals and description optimization)
+- Claude Code CLI (for trigger evals and description optimization in `skill-optimizer`)
 - `ANTHROPIC_API_KEY` in environment (optional — enables exact token counts via the SDK)

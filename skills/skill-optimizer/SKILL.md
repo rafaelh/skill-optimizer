@@ -91,33 +91,41 @@ Read [references/content-patterns.md](references/content-patterns.md) before res
 
 ### 5. Audit bundled scripts
 
-Two complementary checks:
+Three complementary checks. **5a** is skill-level (what should *become* a script); **5b** and **5c** are per-script and are delegated to the [agent-tool-builder](../agent-tool-builder/SKILL.md) skill, which owns the canonical contract for agent-callable Python.
 
-**5a. Interface and structure.**
+**5a. SKILL.md-level recommendations.**
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/recommend_scripts.py" <skill-dir>
 ```
 
-Surfaces opportunities to add or improve scripts:
+Surfaces procedures the agent would re-derive on every run:
 
 - `recommend.script.extract-procedure` — long bash blocks (≥6 lines) that should become scripts
-- `recommend.script.missing-argparse` — entry-point scripts with no `argparse.ArgumentParser`
-- `recommend.script.missing-json` — bundled scripts without a `--json` flag
-- `recommend.script.missing-pep723` — non-stdlib imports without [PEP 723](https://peps.python.org/pep-0723/) inline metadata
+- `recommend.skill-md.missing` — the skill has no SKILL.md
 
-**5b. Implementation quality.**
+**5b. Per-script contract compliance.**
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/perf_check.py" <skill-dir>/scripts/ --json
+for s in <skill-dir>/scripts/*.py; do
+  python3 "${CLAUDE_SKILL_DIR}/../agent-tool-builder/scripts/validate_agent_tool.py" "$s" --json
+done
 ```
 
-Static analysis for Python performance anti-patterns: string concatenation in loops, regex recompiled per iteration, `.append()` in tight loops, repeated subscripts, exception-as-control-flow, pandas `.iterrows()`, etc. Skip a script's findings only with conscious justification.
+Checks each script against the agent-tool interface contract: `argparse` present, `--format` and `--quiet` flags, reachable exit codes `0/1/2/3`, no `input()`, no error-JSON on stdout, PEP 723 block (with both `requires-python` and `dependencies`) when non-stdlib imports are detected. See [agent-tool-builder/SKILL.md](../agent-tool-builder/SKILL.md) and [agent-tool-builder/references/interface-contract.md](../agent-tool-builder/references/interface-contract.md).
+
+**5c. Implementation quality.**
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/../agent-tool-builder/scripts/perf_check.py" <skill-dir>/scripts/ --json
+```
+
+Static analysis for performance anti-patterns: string concatenation in loops, regex recompiled per iteration, `.append()` in tight loops, repeated subscripts, exception-as-control-flow, pandas `.iterrows()`, etc. See [agent-tool-builder/references/perf-findings.md](../agent-tool-builder/references/perf-findings.md) for interpreting findings. Skip a script's findings only with conscious justification.
 
 The skill-optimizer's own conventions for bundled scripts (lifted from [agentskills.io/skill-creation/using-scripts](https://agentskills.io/skill-creation/using-scripts)):
 
 - Stdout = data; stderr = diagnostics. Never mix.
-- All scripts take `--json` so agents can `json.load()` the output.
+- Scripts expose `--format json|text` (default `json`) so agents get structured output without an extra flag.
 - Reject ambiguous input with a clear error rather than guessing.
 - Add `--dry-run` for stateful or destructive operations.
 - Sanitize echoed user content (ANSI escapes, control characters) when scripts read SKILL.md or vault data — see `scripts/skill_lib.py::sanitize_for_echo`.
@@ -174,7 +182,7 @@ Read [references/evaluation.md](references/evaluation.md) when:
 
 ### 8. Re-validate
 
-Run all the static validators again. Iterate until `validate_skill.py` passes, `analyze_skill.py` warnings are addressed (or consciously ignored), `recommend_scripts.py` and `perf_check.py` either report nothing material or you've made conscious decisions about each remaining opportunity, and `detect_skill_overlap.py` shows no unintended collisions.
+Run all the static validators again. Iterate until `validate_skill.py` passes, `analyze_skill.py` warnings are addressed (or consciously ignored), `recommend_scripts.py`, `validate_agent_tool.py`, and `perf_check.py` either report nothing material or you've made conscious decisions about each remaining opportunity, and `detect_skill_overlap.py` shows no unintended collisions.
 
 ## Gotchas
 

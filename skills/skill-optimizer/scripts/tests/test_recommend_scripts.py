@@ -62,151 +62,6 @@ class TestExtractProcedure:
         assert len(opps) == 1
 
 
-class TestArgparseAndHelp:
-    def test_script_without_argparse_flagged(self, skill: SkillFactory) -> None:
-        scripts = {"do_thing.py": ("import sys\nprint(sys.argv[1])\n")}
-        d = skill(scripts=scripts)
-        opps = recommend(d)
-        assert "recommend.script.missing-argparse" in kinds(opps)
-
-    def test_script_with_argparse_not_flagged(self, skill: SkillFactory) -> None:
-        scripts = {
-            "do_thing.py": (
-                "import argparse\n"
-                "p = argparse.ArgumentParser()\n"
-                "p.add_argument('x')\n"
-                "p.parse_args()\n"
-            )
-        }
-        d = skill(scripts=scripts)
-        opps = recommend(d)
-        assert all(
-            not (o["kind"] == "recommend.script.missing-argparse" and "do_thing.py" in o["where"])
-            for o in opps
-        )
-
-
-class TestJsonOutput:
-    def test_script_without_json_output_flagged(self, skill: SkillFactory) -> None:
-        scripts = {
-            "doit.py": (
-                "import argparse\np = argparse.ArgumentParser()\np.parse_args()\nprint('hello')\n"
-            )
-        }
-        d = skill(scripts=scripts)
-        opps = recommend(d)
-        assert "recommend.script.missing-json" in kinds(opps)
-
-    def test_script_with_json_flag_not_flagged(self, skill: SkillFactory) -> None:
-        scripts = {
-            "doit.py": (
-                "import argparse, json\n"
-                "p = argparse.ArgumentParser()\n"
-                "p.add_argument('--json', action='store_true')\n"
-                "p.parse_args()\n"
-                "print(json.dumps({}))\n"
-            )
-        }
-        d = skill(scripts=scripts)
-        opps = [o for o in recommend(d) if o["kind"] == "recommend.script.missing-json"]
-        assert opps == []
-
-
-class TestPep723:
-    def test_non_stdlib_import_without_pep723_flagged(self, skill: SkillFactory) -> None:
-        scripts = {
-            "fetch.py": (
-                "import argparse, json\n"
-                "import requests\n"
-                "p = argparse.ArgumentParser()\n"
-                "p.add_argument('--json', action='store_true')\n"
-                "p.parse_args()\n"
-                "print(json.dumps({}))\n"
-            )
-        }
-        d = skill(scripts=scripts)
-        opps = recommend(d)
-        assert "recommend.script.missing-pep723" in kinds(opps)
-
-    def test_library_file_not_flagged(self, skill: SkillFactory) -> None:
-        # No __main__ block, no sys.argv: this is a library, not an entry
-        # point. PEP 723 belongs on the caller, not here.
-        scripts = {
-            "lib.py": ("import requests\ndef fetch(url):\n    return requests.get(url).text\n"),
-        }
-        d = skill(scripts=scripts)
-        opps = [
-            o
-            for o in recommend(d)
-            if o["kind"] == "recommend.script.missing-pep723" and "lib.py" in o["where"]
-        ]
-        assert opps == []
-
-    def test_non_stdlib_import_with_pep723_not_flagged(self, skill: SkillFactory) -> None:
-        scripts = {
-            "fetch.py": (
-                "# /// script\n"
-                '# dependencies = ["requests"]\n'
-                "# ///\n"
-                "import argparse, json\n"
-                "import requests\n"
-                "p = argparse.ArgumentParser()\n"
-                "p.add_argument('--json', action='store_true')\n"
-                "p.parse_args()\n"
-                "print(json.dumps({}))\n"
-            )
-        }
-        d = skill(scripts=scripts)
-        opps = [o for o in recommend(d) if o["kind"] == "recommend.script.missing-pep723"]
-        assert opps == []
-
-    def test_local_module_imports_are_not_flagged(self, skill: SkillFactory) -> None:
-        scripts = {
-            "helper.py": "def f(): return 1\n",
-            "main.py": (
-                "import argparse, json\n"
-                "from helper import f\n"
-                "p = argparse.ArgumentParser()\n"
-                "p.add_argument('--json', action='store_true')\n"
-                "p.parse_args()\n"
-                "print(json.dumps({'r': f()}))\n"
-            ),
-        }
-        d = skill(scripts=scripts)
-        opps = [o for o in recommend(d) if o["kind"] == "recommend.script.missing-pep723"]
-        assert opps == []
-
-    def test_script_with_json_dumps_but_no_flag_not_flagged(self, skill: SkillFactory) -> None:
-        scripts = {
-            "doit.py": (
-                "import argparse, json\n"
-                "p = argparse.ArgumentParser()\n"
-                "sub = p.add_subparsers(dest='cmd')\n"
-                "sub.add_parser('show')\n"
-                "args = p.parse_args()\n"
-                "if args.cmd == 'show':\n"
-                "    print(json.dumps({'x': 1}))\n"
-            )
-        }
-        d = skill(scripts=scripts)
-        opps = [o for o in recommend(d) if o["kind"] == "recommend.script.missing-json"]
-        assert opps == []
-
-    def test_stdlib_only_script_not_flagged(self, skill: SkillFactory) -> None:
-        scripts = {
-            "doit.py": (
-                "import argparse, json, sys, re\n"
-                "p = argparse.ArgumentParser()\n"
-                "p.add_argument('--json', action='store_true')\n"
-                "p.parse_args()\n"
-                "print(json.dumps({}))\n"
-            )
-        }
-        d = skill(scripts=scripts)
-        opps = [o for o in recommend(d) if o["kind"] == "recommend.script.missing-pep723"]
-        assert opps == []
-
-
 class TestExtraFenceLanguages:
     def test_shell_block_flagged(self, skill: SkillFactory) -> None:
         body = "# Demo\n\n```shell\n" + "\n".join(f"echo {i}" for i in range(8)) + "\n```\n"
@@ -221,30 +76,6 @@ class TestExtraFenceLanguages:
         assert len(opps) == 1
 
 
-class TestSymlinkSafety:
-    def test_external_symlink_in_scripts_skipped(self, skill: SkillFactory, tmp_path: Path) -> None:
-        scripts = {
-            "real.py": (
-                "import argparse, json\n"
-                "p = argparse.ArgumentParser()\n"
-                "p.add_argument('--json', action='store_true')\n"
-                "p.parse_args()\n"
-                "print(json.dumps({}))\n"
-            )
-        }
-        d = skill(scripts=scripts)
-        # Plant an external file and a symlink under scripts/ pointing to it.
-        outside = tmp_path / "outside.py"
-        outside.write_text("import psycopg2\nprint('should not be read')\n")
-        try:
-            (d / "scripts" / "external_link.py").symlink_to(outside)
-        except (OSError, NotImplementedError) as exc:
-            pytest.skip(f"symlinks unavailable on this platform: {exc}")
-        opps = recommend(d)
-        # The external link should not contribute opportunities.
-        assert all("external_link.py" not in o["where"] for o in opps)
-
-
 class TestRobustness:
     def test_skill_md_missing_returns_meta_warning(self, tmp_path: Path) -> None:
         d = tmp_path / "demo"
@@ -257,22 +88,16 @@ class TestRobustness:
         opps = recommend(d)
         assert isinstance(opps, list)
 
-    def test_does_not_recurse_into_tests(self, skill: SkillFactory) -> None:
-        scripts = {
-            "doit.py": (
-                "import argparse, json\np=argparse.ArgumentParser()\n"
-                "p.add_argument('--json',action='store_true');p.parse_args()\n"
-                "print(json.dumps({}))\n"
-            )
-        }
+    def test_scripts_dir_is_ignored(self, skill: SkillFactory) -> None:
+        # Per-script quality is delegated to validate_agent_tool.py; this
+        # script should not produce any per-script findings even when scripts/
+        # contains a deficient file.
+        scripts = {"doit.py": "import sys\nprint(sys.argv[1])\n"}
         d = skill(scripts=scripts)
-        # Add a junk file under scripts/tests/ that would otherwise look like
-        # a deficient script.
-        tests_dir = d / "scripts" / "tests"
-        tests_dir.mkdir()
-        (tests_dir / "test_doit.py").write_text("def test_x(): pass\n")
         opps = recommend(d)
-        assert all("tests/" not in o.get("where", "") for o in opps)
+        assert all(o["kind"] != "recommend.script.missing-argparse" for o in opps)
+        assert all(o["kind"] != "recommend.script.missing-json" for o in opps)
+        assert all(o["kind"] != "recommend.script.missing-pep723" for o in opps)
 
 
 class TestCli:
@@ -294,8 +119,8 @@ class TestCli:
         assert result.returncode == 0
 
     def test_json_output(self, skill: SkillFactory) -> None:
-        scripts = {"x.py": "print(1)\n"}
-        d = skill(scripts=scripts)
+        body = "# Demo\n\n```bash\n" + "\n".join(f"echo {i}" for i in range(8)) + "\n```\n"
+        d = skill(body=body)
         result = self._run(str(d), "--json")
         assert result.returncode == 0
         data = json.loads(result.stdout)

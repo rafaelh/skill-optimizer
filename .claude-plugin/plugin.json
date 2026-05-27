@@ -1,6 +1,6 @@
 {
   "name": "skill-optimizer",
-  "description": "A skill that optimizes other Claude skills, managing context and adding scripts",
-  "version": "1.0.0",
+  "description": "Audit, optimize, validate, scaffold, and trigger-eval Claude Agent Skills (SKILL.md files)",
+  "version": "2.0.0",
   "author": { "name": "Rafe Hart" }
 }

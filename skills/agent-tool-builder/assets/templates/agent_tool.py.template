@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   # list non-stdlib deps here, e.g. "httpx>=0.27"
+# ]
+# ///
+"""<one-line summary — what this tool does and when an agent should call it>.
+
+<2-4 line expanded summary. Mention: what it operates on, what it returns,
+any side effects (writes/network/DB), and required env vars or credentials.>
+
+Usage:
+    {{script_name}}.py [options]
+
+Exit codes:
+    0   Success — data returned or operation completed
+    1   User/invocation error — bad args, validation failed, missing required flag
+    2   System/infrastructure error — network failure, DB unreachable, file missing
+    3   Not found / empty result — query succeeded but nothing matched
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from dataclasses import asdict, dataclass
+from typing import Any
+
+# ---------------------------------------------------------------------------
+# Exit code constants — use these, never bare integers
+# ---------------------------------------------------------------------------
+EXIT_OK = 0
+EXIT_USER_ERROR = 1
+EXIT_SYSTEM_ERROR = 2
+EXIT_NOT_FOUND = 3
+
+# ---------------------------------------------------------------------------
+# Output helpers
+# ---------------------------------------------------------------------------
+
+def _emit_error(error: str, code: str, hint: str = "") -> None:
+    """Write a structured error to stderr. Never write errors to stdout."""
+    payload: dict[str, str] = {"error": error, "code": code}
+    if hint:
+        payload["hint"] = hint
+    print(json.dumps(payload), file=sys.stderr)
+
+
+def _log(msg: str, quiet: bool = False) -> None:
+    """Write informational message to stderr, suppressed by --quiet."""
+    if not quiet:
+        print(msg, file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# Data model
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Record:
+    """One result record. Add or remove fields to match your domain."""
+    id: str
+    name: str
+    # ... add domain fields here
+
+
+# For a single-record tool (fetch-one), replace `data: list[Record]` with
+# `data: Record`, drop `total` / `next_cursor`, and adjust to_json_payload to
+# serialise one record. The "data may be an object rather than an array" rule
+# from the interface contract applies here.
+@dataclass
+class ResultSet:
+    data: list[Record]
+    count: int
+    total: int | None = None
+    next_cursor: str | None = None
+
+    def to_json_payload(self, fields: list[str] | None = None) -> dict[str, Any]:
+        records = [asdict(r) for r in self.data]
+        if fields:
+            keep = frozenset(fields)
+            records = [{k: v for k, v in r.items() if k in keep} for r in records]
+        return {
+            "data": records,
+            "meta": {
+                "count": self.count,
+                "total": self.total,
+                "next_cursor": self.next_cursor,
+            },
+        }
+
+
+# ---------------------------------------------------------------------------
+# Core logic — pure, no I/O, easy to unit-test
+# ---------------------------------------------------------------------------
+
+def fetch(
+    *,
+    query: str | None,
+    limit: int,
+    cursor: str | None,
+) -> ResultSet:
+    """Replace with real implementation. Return ResultSet; raise on system errors."""
+    # TODO: implement
+    raise NotImplementedError
+
+
+# ---------------------------------------------------------------------------
+# Formatters
+# ---------------------------------------------------------------------------
+
+def _emit_json(result: ResultSet, fields: list[str] | None) -> None:
+    print(json.dumps(result.to_json_payload(fields)))
+
+
+def _emit_text(result: ResultSet, fields: list[str] | None) -> None:
+    keep = frozenset(fields) if fields else None
+    for record in result.data:
+        d = asdict(record)
+        if keep is not None:
+            d = {k: v for k, v in d.items() if k in keep}
+        print("  ".join(f"{k}={v}" for k, v in d.items()))
+
+
+def _emit_csv(result: ResultSet, fields: list[str] | None) -> None:
+    import csv, io
+    rows = [asdict(r) for r in result.data]
+    if not rows:
+        return
+    keys = fields if fields else list(rows[0].keys())
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=keys, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    print(out.getvalue(), end="")
+
+
+# ---------------------------------------------------------------------------
+# Argument parser
+# ---------------------------------------------------------------------------
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=__doc__.split("\n", 1)[0] if __doc__ else "",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            # Replace these with 2-3 realistic invocations. `--help` is the agent's
+            # primary reference for how flags compose; flag lists without examples
+            # leave the agent guessing.
+            "Examples:\n"
+            "  {{script_name}} --query 'status:active'\n"
+            "  {{script_name}} --query 'status:active' --fields id,name --limit 50\n"
+            "  {{script_name}} --cursor 'eyJwYWdlIjogMn0='  # next page\n"
+        ),
+    )
+
+    # --- Required / primary inputs -------------------------------------------
+    # parser.add_argument("--id", help="ID of the resource to fetch")
+
+    # --- Filtering / selection -----------------------------------------------
+    parser.add_argument("--query", help="Search query string")
+    parser.add_argument(
+        "--fields",
+        help="Comma-separated list of fields to return (default: all)",
+    )
+
+    # --- Pagination -----------------------------------------------------------
+    parser.add_argument("--limit", type=int, default=20, help="Max records to return (default: 20)")
+    parser.add_argument("--cursor", help="Pagination cursor from previous call's meta.next_cursor")
+    # Uncomment for offset-based pagination instead:
+    # parser.add_argument("--offset", type=int, default=0)
+
+    # --- Output control (mandatory for all agent tools) ----------------------
+    parser.add_argument(
+        "--format",
+        choices=["json", "text", "csv"],
+        default="json",
+        help="Output format (default: json)",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress informational stderr output",
+    )
+
+    # --- Destructive-operation safety (add for create/update/delete) ---------
+    # parser.add_argument(
+    #     "--dry-run", action="store_true",
+    #     help="Show what would happen without making changes",
+    # )
+    # parser.add_argument(
+    #     "--yes", action="store_true",
+    #     help="Bypass confirmation prompts (required for non-interactive use)",
+    # )
+    # In main(), gate any prompt on both `--yes` and `sys.stdin.isatty()`:
+    #     if not args.yes and sys.stdin.isatty():
+    #         if input("Proceed? [y/N] ").strip().lower() != "y":
+    #             return EXIT_USER_ERROR
+    # Non-TTY invocation without --yes should EITHER proceed implicitly OR
+    # return EXIT_USER_ERROR with a hint — never hang waiting for input.
+
+    return parser
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    # --- Validate arguments BEFORE doing any work ----------------------------
+    fields = [f.strip() for f in args.fields.split(",")] if args.fields else None
+
+    if args.limit < 1 or args.limit > 1000:
+        _emit_error(
+            "--limit must be between 1 and 1000",
+            "INVALID_LIMIT",
+            hint="Use --limit 20 for the default page size",
+        )
+        return EXIT_USER_ERROR
+
+    # Add other validation here. Example:
+    # if args.id and not args.id.startswith("rec_"):
+    #     _emit_error("--id must start with 'rec_'", "INVALID_ID",
+    #                 hint="Get valid IDs with: list-things --format json")
+    #     return EXIT_USER_ERROR
+
+    # --- Execute -------------------------------------------------------------
+    _log(f"Fetching (limit={args.limit}, cursor={args.cursor!r})...", quiet=args.quiet)
+
+    try:
+        result = fetch(query=args.query, limit=args.limit, cursor=args.cursor)
+    except NotImplementedError:
+        _emit_error("fetch() not yet implemented", "NOT_IMPLEMENTED")
+        return EXIT_SYSTEM_ERROR
+    except Exception as exc:
+        _emit_error(str(exc), "SYSTEM_ERROR", hint="Check connectivity and credentials")
+        return EXIT_SYSTEM_ERROR
+
+    if not result.data:
+        _log("No matching records.", quiet=args.quiet)
+        return EXIT_NOT_FOUND
+
+    _log(f"Returned {result.count} record(s).", quiet=args.quiet)
+
+    if args.format == "json":
+        _emit_json(result, fields)
+    elif args.format == "text":
+        _emit_text(result, fields)
+    elif args.format == "csv":
+        _emit_csv(result, fields)
+
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main())

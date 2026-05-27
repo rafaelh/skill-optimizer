@@ -108,7 +108,7 @@ def run_query(query: str, *, claude_bin: str = "claude") -> dict[str, Any]:
     Returns the parsed JSON response. Raises CalledProcessError if claude
     fails or RuntimeError if the output isn't JSON.
     """
-    result = subprocess.run(  # noqa: S603 - claude_bin is validated via shutil.which
+    result = subprocess.run(
         [claude_bin, "-p", query, "--output-format", "json"],
         capture_output=True,
         text=True,

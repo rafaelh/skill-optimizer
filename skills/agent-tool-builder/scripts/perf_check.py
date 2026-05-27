@@ -1,5 +1,24 @@
 #!/usr/bin/env python3
-"""perf_check.py — Static and runtime Python performance analysis."""
+"""perf_check.py — Static and runtime Python performance analysis for agent tools.
+
+Walks Python files (or directories, recursively) and flags common per-call
+performance anti-patterns: string concat in loops, regex recompilation,
+linear-scan membership tests, pandas row iteration, and others. Optionally
+profiles a script at runtime via cProfile.
+
+Usage:
+    perf_check.py <path> [path ...]                # static analysis
+    perf_check.py --profile <script.py> -- <args>  # runtime profile
+    perf_check.py <path> --format json             # machine-readable
+
+Exit codes:
+    0   Analysis ran; no HIGH findings (or no findings at all)
+    1   User/invocation error — bad args, paths not found
+    2   System/infrastructure error — unexpected exception while parsing
+    3   Analysis ran; no Python files matched the inputs
+"""
+
+from __future__ import annotations
 
 import argparse
 import ast
@@ -13,6 +32,11 @@ import sys
 import textwrap
 from typing import Any
 
+EXIT_OK = 0
+EXIT_USER_ERROR = 1
+EXIT_SYSTEM_ERROR = 2
+EXIT_NOT_FOUND = 3
+
 _C = {
     "HIGH": "\033[91m",
     "MEDIUM": "\033[93m",
@@ -21,6 +45,19 @@ _C = {
     "BOLD": "\033[1m",
 }
 _SEV_ORDER = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+
+
+def _emit_error(error: str, code: str, hint: str = "") -> None:
+    """Structured error to stderr; never to stdout."""
+    payload: dict[str, str] = {"error": error, "code": code}
+    if hint:
+        payload["hint"] = hint
+    print(json.dumps(payload), file=sys.stderr)
+
+
+def _log(msg: str, quiet: bool) -> None:
+    if not quiet:
+        print(msg, file=sys.stderr)
 
 
 @dataclass
@@ -73,7 +110,7 @@ class PerfVisitor(ast.NodeVisitor):
                     lineno,
                     "LOW",
                     "repeated-subscript",
-                    f"'{obj}[{key!r}]' accessed {count}× per loop iteration",
+                    f"'{obj}[{key!r}]' accessed {count}x per loop iteration",
                     "Cache in a local variable at the top of the loop body",
                 )
 
@@ -283,11 +320,31 @@ def analyze(path: Path) -> list[Issue]:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except SyntaxError as e:
-        print(f"  syntax error in {path}: {e}", file=sys.stderr)
-        return []
+        raise SyntaxError(f"syntax error in {path}: {e}") from e
     v = PerfVisitor(str(path))
     v.visit(tree)
     return v.issues
+
+
+def _resolve_inputs(paths: list[str]) -> tuple[list[Path], list[str]]:
+    """Expand paths into a flat list of .py files. Directories are walked recursively.
+
+    Returns (files, missing) — missing is a list of paths that didn't exist.
+    """
+    files: list[Path] = []
+    missing: list[str] = []
+    for raw in paths:
+        p = Path(raw).expanduser()
+        if not p.exists():
+            missing.append(raw)
+            continue
+        if p.is_dir():
+            files.extend(sorted(p.rglob("*.py")))
+        elif p.suffix == ".py":
+            files.append(p)
+        else:
+            files.append(p)  # let analyze() decide; SyntaxError will bubble up
+    return files, missing
 
 
 def profile_script(
@@ -370,11 +427,11 @@ def print_issues(issues: list[Issue]) -> None:
     print(f"  Summary: {counts['HIGH']} high  {counts['MEDIUM']} medium  {counts['LOW']} low\n")
 
 
-def main() -> None:
-    argv = sys.argv[1:]
-    if "--" in argv:
-        idx = argv.index("--")
-        script_args, argv = argv[idx + 1 :], argv[:idx]
+def main(argv: list[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if "--" in raw:
+        idx = raw.index("--")
+        script_args, raw = raw[idx + 1 :], raw[:idx]
     else:
         script_args = []
 
@@ -383,14 +440,21 @@ def main() -> None:
         description="Detect Python performance anti-patterns (static + runtime).",
         epilog=textwrap.dedent("""\
             examples:
-              perf_check.py app.py                         static analysis only
-              perf_check.py --profile slow.py              profile + static analysis
-              perf_check.py app.py --profile slow.py       both
-              perf_check.py --profile script.py -- a b c   pass args to profiled script
+              perf_check.py app.py                            # static analysis of one file
+              perf_check.py src/tools/                        # walk a directory recursively
+              perf_check.py app.py --format json              # machine-readable output
+              perf_check.py app.py --quiet                    # suppress informational stderr
+              perf_check.py --profile slow.py                 # profile at runtime
+              perf_check.py --profile script.py -- a b c      # pass args to profiled script
         """),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("files", nargs="*", metavar="FILE", help="Python files to analyze statically")
+    p.add_argument(
+        "files",
+        nargs="*",
+        metavar="PATH",
+        help="Python files or directories to analyze statically (directories walked recursively)",
+    )
     p.add_argument("--profile", metavar="SCRIPT", help="script to profile at runtime")
     p.add_argument(
         "--top",
@@ -399,65 +463,122 @@ def main() -> None:
         metavar="N",
         help="top N functions in profile output (default: 20)",
     )
-    p.add_argument("--json", action="store_true", help="output results as JSON")
-    args = p.parse_args(argv)
+    p.add_argument(
+        "--format",
+        choices=["json", "text"],
+        default="text",
+        help="Output format (default: text). Use --format json for agent-callable output.",
+    )
+    p.add_argument(
+        "--json",
+        action="store_true",
+        help="Alias for --format json (kept for back-compat).",
+    )
+    p.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress informational stderr (file counts, etc.). Errors still emit.",
+    )
+    args = p.parse_args(raw)
 
     if not args.files and not args.profile:
         p.print_help()
-        sys.exit(0)
+        return EXIT_USER_ERROR
 
-    if args.json:
-        result: dict[str, Any] = {}
+    use_json = args.json or args.format == "json"
 
-        if args.files:
-            all_issues: list[Issue] = []
-            for f in args.files:
-                path = Path(f)
-                if not path.exists():
-                    print(f"not found: {f}", file=sys.stderr)
-                    continue
-                all_issues.extend(analyze(path))
-            result["static"] = [asdict(i) for i in all_issues]
+    try:
+        files, missing = _resolve_inputs(args.files) if args.files else ([], [])
+    except Exception as exc:
+        _emit_error(
+            f"Unexpected error resolving inputs: {exc}",
+            "RESOLVE_FAILED",
+            hint="Check that paths exist and are readable",
+        )
+        return EXIT_SYSTEM_ERROR
+
+    if missing:
+        _emit_error(
+            f"Path(s) not found: {', '.join(missing)}",
+            "PATH_NOT_FOUND",
+            hint="Pass an existing file or directory; directories are walked recursively",
+        )
+        return EXIT_USER_ERROR
+
+    if args.files and not files:
+        _log("No Python files matched the given paths.", quiet=args.quiet)
+        return EXIT_NOT_FOUND
+
+    _log(f"Analyzing {len(files)} file(s)...", quiet=args.quiet)
+
+    try:
+        if use_json:
+            result: dict[str, Any] = {}
+            if files:
+                all_issues: list[Issue] = []
+                for path in files:
+                    all_issues.extend(analyze(path))
+                result["static"] = [asdict(i) for i in all_issues]
+                result["meta"] = {
+                    "files_analyzed": len(files),
+                    "issues_total": len(all_issues),
+                    "issues_high": sum(1 for i in all_issues if i.severity == "HIGH"),
+                }
+            if args.profile:
+                script = Path(args.profile)
+                if not script.exists():
+                    _emit_error(
+                        f"Profile target not found: {args.profile}",
+                        "PROFILE_TARGET_NOT_FOUND",
+                    )
+                    return EXIT_USER_ERROR
+                if script not in files:
+                    result.setdefault("static", []).extend(asdict(i) for i in analyze(script))
+                result["profile"] = profile_script(script, script_args, top=args.top, as_data=True)
+            print(json.dumps(result, indent=2))
+            return EXIT_OK
+
+        c = _C if sys.stdout.isatty() else dict.fromkeys(_C, "")
+        if files:
+            all_issues_text: list[Issue] = []
+            for path in files:
+                all_issues_text.extend(analyze(path))
+            print(f"\n{c['BOLD']}Static Analysis ({len(files)} file(s)){c['RESET']}")
+            print("─" * 72)
+            print_issues(all_issues_text)
 
         if args.profile:
             script = Path(args.profile)
             if not script.exists():
-                print(f"not found: {args.profile}", file=sys.stderr)
-                sys.exit(1)
-            if args.profile not in (args.files or []):
-                result.setdefault("static", []).extend(asdict(i) for i in analyze(script))
-            result["profile"] = profile_script(script, script_args, top=args.top, as_data=True)
+                _emit_error(
+                    f"Profile target not found: {args.profile}",
+                    "PROFILE_TARGET_NOT_FOUND",
+                )
+                return EXIT_USER_ERROR
+            if script not in files:
+                issues = analyze(script)
+                if issues:
+                    print(f"\n{c['BOLD']}Static Analysis — {script}{c['RESET']}")
+                    print("─" * 72)
+                    print_issues(issues)
+            profile_script(script, script_args, top=args.top)
 
-        print(json.dumps(result, indent=2))
-        return
-
-    c = _C if sys.stdout.isatty() else dict.fromkeys(_C, "")
-
-    if args.files:
-        all_issues_text: list[Issue] = []
-        for f in args.files:
-            path = Path(f)
-            if not path.exists():
-                print(f"not found: {f}", file=sys.stderr)
-                continue
-            all_issues_text.extend(analyze(path))
-        print(f"\n{c['BOLD']}Static Analysis{c['RESET']}")
-        print("─" * 72)
-        print_issues(all_issues_text)
-
-    if args.profile:
-        script = Path(args.profile)
-        if not script.exists():
-            print(f"not found: {args.profile}", file=sys.stderr)
-            sys.exit(1)
-        if args.profile not in (args.files or []):
-            issues = analyze(script)
-            if issues:
-                print(f"\n{c['BOLD']}Static Analysis — {script}{c['RESET']}")
-                print("─" * 72)
-                print_issues(issues)
-        profile_script(script, script_args, top=args.top)
+        return EXIT_OK
+    except SyntaxError as exc:
+        _emit_error(
+            str(exc),
+            "PARSE_FAILED",
+            hint="Fix the syntax error in the listed file before re-running",
+        )
+        return EXIT_SYSTEM_ERROR
+    except Exception as exc:
+        _emit_error(
+            f"{type(exc).__name__}: {exc}",
+            "UNEXPECTED_ERROR",
+            hint="Re-run with the file directly to isolate the failing input",
+        )
+        return EXIT_SYSTEM_ERROR
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

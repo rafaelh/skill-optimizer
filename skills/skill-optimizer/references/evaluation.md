@@ -32,12 +32,12 @@ Aim for 8–10 should-trigger and 8–10 should-not-trigger queries. Across the 
 
 The most valuable queries are the boundary cases. For positives, include prompts where the connection isn't obvious. For negatives, include **near-misses** — same keywords, different actual need:
 
-| Skill | Trap negative | Why |
-|---|---|---|
-| CSV analysis | "upload these csv rows to postgres" | "csv" appears, but task is database loading |
-| CSV analysis | "fix the failing test in test_csv_parser.py" | csv mentioned, but task is debugging |
-| PDF processing | "explain how pypdf reads encrypted PDFs" | library-internals question, not document work |
-| Code review | "review this AWS bill" | non-code review |
+| Skill          | Trap negative                                | Why                                           |
+|----------------|----------------------------------------------|-----------------------------------------------|
+| CSV analysis   | "upload these csv rows to postgres"          | "csv" appears, but task is database loading   |
+| CSV analysis   | "fix the failing test in test_csv_parser.py" | csv mentioned, but task is debugging          |
+| PDF processing | "explain how pypdf reads encrypted PDFs"     | library-internals question, not document work |
+| Code review    | "review this AWS bill"                       | non-code review                               |
 
 If your description over-triggers on near-misses, the description is keyword-matching instead of intent-matching.
 
@@ -71,11 +71,11 @@ Output (abbreviated):
 
 Use train-set failures only.
 
-| Failure type | Revision direction |
-|---|---|
-| should-trigger missed | Broaden scope; add explicit trigger contexts ("even when the user doesn't say 'CSV'") |
-| should-not-trigger fired | Add specificity; clarify boundary with adjacent skills |
-| Mixed near-miss confusion | Add a disambiguating phrase ("for analysis, not loading or migration") |
+| Failure type              | Revision direction                                                                    |
+|---------------------------|---------------------------------------------------------------------------------------|
+| should-trigger missed     | Broaden scope; add explicit trigger contexts ("even when the user doesn't say 'CSV'") |
+| should-not-trigger fired  | Add specificity; clarify boundary with adjacent skills                                |
+| Mixed near-miss confusion | Add a disambiguating phrase ("for analysis, not loading or migration")                |
 
 Two anti-patterns to avoid:
 
