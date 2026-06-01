@@ -1,6 +1,6 @@
 ---
 name: skill-optimizer
-description: Audit, optimize, validate, scaffold, and trigger-eval Claude Agent Skills (SKILL.md files). Use this skill when the user wants to create a new skill, improve an existing one, debug why a skill isn't activating, restructure a bloated SKILL.md, validate frontmatter against the Agent Skills specification, run a trigger-rate eval, detect description overlap between sibling skills, audit a skill's bundled scripts, or apply patterns like gotchas, validation loops, and progressive disclosure. Trigger even when the user doesn't say "skill" — e.g., "this prompt file isn't activating", "rewrite my SKILL.md", "why doesn't Claude pick up my custom command", "scaffold a new skill", "audit my .claude/skills directory", or "test whether my description triggers reliably".
+description: Audit, optimize, validate, scaffold, security-audit, and trigger-eval Claude Agent Skills (SKILL.md files). Use this skill when the user wants to create a new skill, improve an existing one, debug why a skill isn't activating, restructure a bloated SKILL.md, validate frontmatter against the Agent Skills specification, run a trigger-rate eval, detect description overlap between sibling skills, audit a skill's bundled scripts, check a skill for security issues against the OWASP Agentic Skills Top 10 (over-privileged tools, hardcoded secrets, unsafe deserialization, supply-chain risks), or apply patterns like gotchas, validation loops, and progressive disclosure. Trigger even when the user doesn't say "skill" — e.g., "this prompt file isn't activating", "rewrite my SKILL.md", "why doesn't Claude pick up my custom command", "scaffold a new skill", "audit my .claude/skills directory", "is this skill safe to install", or "test whether my description triggers reliably".
 compatibility: Designed for Claude Code. Requires Python 3.14+ (stdlib only on most paths). eval_triggers.py and optimize_description.py require the `claude` CLI on PATH. count_tokens.py uses the anthropic SDK if ANTHROPIC_API_KEY is set, else falls back to a heuristic. Scripts using PEP 723 metadata run cleanest under `uv run`.
 effort: high
 allowed-tools: Bash(python3 *) Read Edit Write
@@ -25,6 +25,7 @@ The user is asking you to:
 - Iterate the description toward a higher validation pass rate
 - Detect description overlap between sibling skills
 - Audit a skill's bundled scripts for interface, structure, and performance issues
+- Security-audit a skill against the OWASP Agentic Skills Top 10 (before installing or publishing one)
 
 ## Workflow
 
@@ -131,7 +132,32 @@ The skill-optimizer's own conventions for bundled scripts (lifted from [agentski
 - Sanitize echoed user content (ANSI escapes, control characters) when scripts read SKILL.md or vault data — see `scripts/skill_lib.py::sanitize_for_echo`.
 - Pin output size; default to summary, support pagination flags for detail.
 
-### 6. Cross-skill overlap check
+### 6. Security audit (OWASP Agentic Skills Top 10)
+
+A skill is executable trust: SKILL.md becomes agent instructions and bundled scripts run with the agent's privileges. Audit any skill you didn't write or intend to publish.
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/audit_security.py" <skill-dir>
+```
+
+Static, high-signal scan mapped to the OWASP Agentic Skills Top 10. Findings carry an `AST##` id; exit is non-zero only on FAIL (hardcoded secrets), so pass `--exit-on-warn` in CI. Codes follow `security.<surface>.<concern>`:
+
+- `security.tools.unrestricted-bash` / `security.tools.broad-bash-glob` (AST03) — `allowed-tools` grants bare `Bash` or a `Bash(*)` wildcard. Scope to the command prefix actually used.
+- `security.secret.hardcoded` (AST04, **FAIL**) — an embedded API key, token, or private-key block. Move it to an env var.
+- `security.script.unsafe-deserialization` (AST05) — pickle, `yaml.load`, eval/exec, marshal on untrusted data.
+- `security.script.shell-injection` / `security.script.dangerous-fs` (AST06) — `shell=True`, `os.system`, `shutil.rmtree`.
+- `security.exec.curl-pipe-shell` / `security.deps.unpinned` (AST02) — fetch-and-run, or unpinned PEP 723 deps.
+- `security.body.hidden-unicode` (AST01) — invisible/bidi-override characters hidden in instructions.
+
+The scan covers the mechanically-detectable subset. The process risks — AST07 (update drift), AST09 (no governance), AST10 (cross-platform reuse) — have no static signal and need a human pass.
+
+Read [references/security.md](references/security.md) when:
+
+- The auditor reports a finding and you want the rationale behind its `AST##` code
+- You're deciding how tightly to scope `allowed-tools`, or how to handle a skill that needs secrets, shells out, or deserializes data
+- You're doing the pre-publication checklist for a skill you intend to share
+
+### 7. Cross-skill overlap check
 
 When the skill lives alongside others, run:
 
@@ -152,7 +178,7 @@ Read [references/cross-skill-design.md](references/cross-skill-design.md) when:
 - You're scaffolding a skill that overlaps an existing one
 - A user reports the wrong skill activated for their request
 
-### 7. Trigger eval and description optimization
+### 8. Trigger eval and description optimization
 
 This is the most direct way to know whether a description actually works.
 
@@ -180,9 +206,9 @@ Read [references/evaluation.md](references/evaluation.md) when:
 - Interpreting eval output (what counts as a pass)
 - The optimization loop plateaus and you need to diagnose the queries themselves
 
-### 8. Re-validate
+### 9. Re-validate
 
-Run all the static validators again. Iterate until `validate_skill.py` passes, `analyze_skill.py` warnings are addressed (or consciously ignored), `recommend_scripts.py`, `validate_agent_tool.py`, and `perf_check.py` either report nothing material or you've made conscious decisions about each remaining opportunity, and `detect_skill_overlap.py` shows no unintended collisions.
+Run all the static validators again. Iterate until `validate_skill.py` passes, `analyze_skill.py` warnings are addressed (or consciously ignored), `recommend_scripts.py`, `validate_agent_tool.py`, and `perf_check.py` either report nothing material or you've made conscious decisions about each remaining opportunity, `audit_security.py` shows no FAIL findings and each WARN is fixed or consciously accepted, and `detect_skill_overlap.py` shows no unintended collisions.
 
 ## Gotchas
 
@@ -191,6 +217,7 @@ Run all the static validators again. Iterate until `validate_skill.py` passes, `
 - `count_tokens.py` returns `exact: false` whenever it falls back to the heuristic. The agent should treat heuristic counts as ±20% — fine for "is this over budget" decisions, not fine for fine-grained budget arithmetic.
 - `detect_skill_overlap.py` flags pairs above the threshold; it does not prove a misfire. Use the `shared_keywords` field as the actionable signal — three or more shared domain keywords is the real overlap.
 - The `name` field MUST equal the parent directory name. Renaming a skill means renaming both the directory and the frontmatter, in lockstep, or `validate_skill.py` reports `validate.name.dir-mismatch`.
+- `audit_security.py` is a regex/token scanner: it blanks Python strings and comments before the code-construct checks (so `eval(` in a docstring isn't a hit) and skips `tests/` (mock secrets live there). It still surfaces true positives you *accept* after triage — an intentional `exec()`, a deliberately loose pin. A WARN is a prompt for a conscious decision, not an automatic defect. Conversely, a clean scan is not a safety guarantee: AST07/09/10 are process risks with no static signal — read the SKILL.md as the instructions an agent will follow.
 
 ## Anti-patterns to flag immediately
 
@@ -201,7 +228,10 @@ Run all the static validators again. Iterate until `validate_skill.py` passes, `
 - Generic filler (`follow best practices`, `handle errors appropriately`) — replace with concrete gotchas.
 - Reference files mentioned without a load trigger ("see references/ for details") — agent won't load them.
 - `name`: uppercase, leading/trailing hyphen, consecutive hyphens, or mismatch with directory.
-- Bundled scripts that hardcode secrets or `cd` into absolute paths outside the skill.
+- Bundled scripts that hardcode secrets or `cd` into absolute paths outside the skill. (AST04)
+- Over-privileged `allowed-tools` — bare `Bash` or `Bash(*)` instead of a scoped prefix like `Bash(python3 *)`. (AST03)
+- `curl … | sh` fetch-and-run, or unpinned PEP 723 dependencies (`pkg>=1.0` instead of `pkg==1.2.3`). (AST02)
+- Unsafe deserialization of untrusted data — `pickle.loads`, `yaml.load` without `SafeLoader`, `eval`/`exec`, or `subprocess(..., shell=True)`. (AST05/AST06)
 - Bundled scripts that lack `argparse` (so `--help` is missing) or print free-form text only (so agents can't structure-parse).
 - Scripts that echo SKILL.md content verbatim without sanitization — ANSI escapes and control characters in untrusted skill files can confuse the calling agent or terminal.
 - Two skills with bag-of-words cosine ≥ 0.5 over their descriptions and no explicit "NOT for X — see Y" disambiguator.
