@@ -52,6 +52,18 @@ Critical rule: tell the agent *when* to load each reference. "Read `references/a
 
 ## Calibrating control
 
+### Degrees of freedom
+
+Match the level of specificity to the task's fragility and variability:
+
+| Level | Use when | Form |
+|-------|----------|------|
+| **High freedom** | Multiple approaches are valid, decisions depend on context | Text-based guidelines with rationale |
+| **Medium freedom** | A preferred pattern exists but variation is acceptable | Pseudocode or scripts with parameters |
+| **Low freedom** | Operations are fragile, sequencing is critical, errors are costly | Specific scripts with minimal parameters |
+
+Think of the agent exploring a path: a narrow bridge with cliffs needs specific guardrails (low freedom), while an open field allows many routes (high freedom). Calibrate each section independently within a skill.
+
 ### Match specificity to fragility
 
 **Give freedom** when multiple approaches are valid and the task tolerates variation. Explain *why* — an agent that understands purpose makes better context-dependent decisions:
@@ -112,6 +124,44 @@ Join the `orders` table to `customers` on `customer_id`, filter where
 3. Apply any filters from the user's request as WHERE clauses
 4. Aggregate numeric columns as needed and format as a markdown table
 ```
+
+## Body structure archetypes
+
+Choose the structure that best fits the skill's purpose. Most skills combine patterns.
+
+### Workflow-Based (sequential processes)
+
+Best when there are clear step-by-step procedures. Example: a DOCX skill with "Workflow Decision Tree" → "Reading" → "Creating" → "Editing".
+
+```markdown
+## Overview → ## Decision Tree → ## Step 1 → ## Step 2…
+```
+
+### Task-Based (tool collections)
+
+Best when the skill offers different operations. Example: a PDF skill with "Quick Start" → "Merge" → "Split" → "Extract Text".
+
+```markdown
+## Overview → ## Quick Start → ## Task Category 1 → ## Task Category 2…
+```
+
+### Reference/Guidelines (standards or specifications)
+
+Best for brand guidelines, coding standards, or requirements. Example: brand styling with "Guidelines" → "Colors" → "Typography".
+
+```markdown
+## Overview → ## Guidelines → ## Specifications → ## Usage…
+```
+
+### Capabilities-Based (integrated systems)
+
+Best when the skill provides multiple interrelated features. Example: product management with "Core Capabilities" → numbered feature list.
+
+```markdown
+## Overview → ## Core Capabilities → ### 1. Feature → ### 2. Feature…
+```
+
+Pick the archetype closest to the skill's purpose, then adapt. A deployment skill might use Workflow-Based for the deploy process but Task-Based for rollback/monitoring sub-sections.
 
 ## Reusable structural patterns
 

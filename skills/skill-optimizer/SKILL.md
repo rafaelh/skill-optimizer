@@ -29,7 +29,23 @@ Scaffold a new skill so it passes validators out of the box.
 
 ### Workflow
 
-1. **Run the scaffolder.**
+1. **Understand the skill with concrete examples.** Before scaffolding, establish what the skill does through concrete usage scenarios. Ask:
+
+- "What would a user say that should trigger this skill?"
+- "Can you give examples of how this skill would be used?"
+- "What does the skill do that the agent can't already do alone?"
+
+Conclude when you have 3–5 representative tasks the skill must handle. These become the basis for the description's trigger contexts and later eval queries.
+
+2. **Plan reusable resources.** For each example, identify what should become bundled resources:
+
+- **Script** — code the agent would rewrite each run (e.g., PDF rotation, form filling, data transformation)
+- **Reference** — documentation the agent needs to make informed decisions (e.g., schemas, API docs, domain rules)
+- **Asset** — files used in output, not loaded into context (e.g., templates, boilerplate, images)
+
+Do NOT create resources speculatively. Each must trace back to a concrete example from step 1. Do NOT include README, CHANGELOG, INSTALLATION_GUIDE, or other auxiliary documentation — skills contain only what the agent needs to do the job.
+
+3. **Run the scaffolder.**
 
 ```bash
 python3 "${SKILL_DIR}/scripts/init_skill.py" \
@@ -44,14 +60,14 @@ Skills live in platform-specific locations:
 - **GitHub Copilot / VS Code**: `~/.config/Code/User/prompts/<name>/` or `<repo>/.github/prompts/<name>/`
 - **Codex**: `<repo>/.codex/skills/<name>/`
 
-2. **Write the description.** Read [references/description-guide.md](references/description-guide.md) for the full writing rules. Quick rules:
+4. **Write the description.** Read [references/description-guide.md](references/description-guide.md) for the full writing rules. Quick rules:
 
 - **Imperative**: "Use this skill when..." not "This skill does..."
 - **Intent-focused**: describe what the user is trying to achieve, not internals
 - **Pushy**: list trigger contexts including ones where the user doesn't name the domain
 - **Hard limit**: 1024 characters
 
-3. **Write the body.** Read [references/content-patterns.md](references/content-patterns.md) before structuring. Key principles:
+5. **Write the body.** Read [references/content-patterns.md](references/content-patterns.md) before structuring. Key principles:
 
 - Cut what the agent already knows
 - Convert declarations into procedures
@@ -60,7 +76,7 @@ Skills live in platform-specific locations:
 - Bundle scripts for any logic the agent would otherwise reinvent each run
 - Keep SKILL.md under 500 lines / ~5000 tokens; move detail into `references/`
 
-4. **Validate immediately.** Run the static validators (see Mode 2, step 1) to confirm the new skill passes before moving on.
+6. **Validate immediately.** Run the static validators (see Mode 2, step 1) to confirm the new skill passes before moving on.
 
 ### Gotchas (Create)
 
@@ -158,6 +174,15 @@ Read [references/security.md](references/security.md) for rationale behind each 
 6. **Re-validate.** Delegate to the same subagent pattern as step 1. Iterate until: `validate_skill.py` passes, `analyze_skill.py` warnings are addressed or consciously accepted, `audit_security.py` shows no FAIL findings, and script audits report nothing material.
 
 > **Combined audit subagent:** Steps 1, 4, 5, and 6 can be merged into a single subagent invocation when running a full audit. Prompt the subagent to run all validators, script audits, and security checks, then return one unified findings report grouped by severity (FAIL → WARN → INFO).
+
+7. **Forward-test complex skills.** After substantial revisions or for tricky skills, launch a subagent to stress-test the skill on realistic tasks.
+
+Forward-testing rules:
+- The subagent should NOT know it's testing a skill. Prompt it as a real user would: `"Use <skill-name> at /path/to/skill to solve <problem>"` — not `"Review the skill at /path/to/skill and pretend a user asks…"`.
+- Pass the artifact under validation (a file, a task description), not your diagnosis of what's wrong.
+- Keep the prompt generic enough that success depends on transferable reasoning, not leaked ground truth.
+
+Decision rule: err on the side of forward-testing. Skip only when the skill is trivial or the change is cosmetic. Ask for approval if forward-testing would take a long time, require additional user approvals, or modify live systems.
 
 ### Gotchas (Audit)
 
