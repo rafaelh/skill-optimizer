@@ -369,7 +369,8 @@ def main(argv: list[str] | None = None) -> int:
     skill_dir = Path(args.skill_dir).expanduser().resolve()
     if not skill_dir.is_dir():
         emit_error(
-            "optimize_description", f"not a directory: {skill_dir}",
+            "optimize_description",
+            f"not a directory: {skill_dir}",
             code="optimize.input.not-dir",
             hint="First argument must be a skill directory.",
         )

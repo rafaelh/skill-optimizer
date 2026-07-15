@@ -155,7 +155,8 @@ def main(argv: list[str] | None = None) -> int:
         text = _read_input(args.target)
     except (FileNotFoundError, IsADirectoryError) as exc:
         emit_error(
-            "count_tokens", str(exc),
+            "count_tokens",
+            str(exc),
             code="count.input.not-found",
             hint="Provide a valid file path or '-' for stdin.",
         )

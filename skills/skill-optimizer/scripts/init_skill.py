@@ -251,14 +251,16 @@ def main(argv: list[str] | None = None) -> int:
     parent = Path(args.parent_dir).expanduser().resolve()
     if not parent.exists():
         emit_error(
-            "init_skill", f"parent does not exist: {parent}",
+            "init_skill",
+            f"parent does not exist: {parent}",
             code="init.input.not-found",
             hint="Check the parent directory path.",
         )
         return 2
     if not parent.is_dir():
         emit_error(
-            "init_skill", f"parent is not a directory: {parent}",
+            "init_skill",
+            f"parent is not a directory: {parent}",
             code="init.input.not-dir",
             hint="First argument must be a directory.",
         )
@@ -274,7 +276,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     except FileExistsError as exc:
         emit_error(
-            "init_skill", str(exc),
+            "init_skill",
+            str(exc),
             code="init.conflict.exists",
             hint="Use --force to write into existing directory.",
         )

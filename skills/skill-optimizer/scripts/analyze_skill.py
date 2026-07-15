@@ -296,13 +296,16 @@ def main(argv: list[str] | None = None) -> int:
     skill_dir = Path(args.skill_dir).expanduser().resolve()
     if not skill_dir.exists():
         emit_error(
-            "analyze_skill", f"path does not exist: {skill_dir}",
-            code="analyze.input.not-found", hint="Check the path and try again.",
+            "analyze_skill",
+            f"path does not exist: {skill_dir}",
+            code="analyze.input.not-found",
+            hint="Check the path and try again.",
         )
         return 2
     if not skill_dir.is_dir():
         emit_error(
-            "analyze_skill", f"not a directory: {skill_dir}",
+            "analyze_skill",
+            f"not a directory: {skill_dir}",
             code="analyze.input.not-dir",
             hint="Argument must be a skill directory, not a file.",
         )

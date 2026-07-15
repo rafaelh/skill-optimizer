@@ -327,14 +327,16 @@ def main(argv: list[str] | None = None) -> int:
     target = Path(args.target).expanduser().resolve()
     if not target.exists():
         emit_error(
-            "detect_skill_overlap", f"target does not exist: {target}",
+            "detect_skill_overlap",
+            f"target does not exist: {target}",
             code="overlap.input.not-found",
             hint="Check the path and try again.",
         )
         return 2
     if not target.is_dir():
         emit_error(
-            "detect_skill_overlap", f"target is not a directory: {target}",
+            "detect_skill_overlap",
+            f"target is not a directory: {target}",
             code="overlap.input.not-dir",
             hint="Argument must be a directory.",
         )
@@ -358,7 +360,8 @@ def main(argv: list[str] | None = None) -> int:
         msg = str(exc)
         if "no skills" in msg:
             emit_error(
-                "detect_skill_overlap", msg,
+                "detect_skill_overlap",
+                msg,
                 code="overlap.detect.not-found",
                 hint="Ensure the directory contains subdirectories with SKILL.md files.",
             )

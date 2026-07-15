@@ -145,14 +145,16 @@ def main(argv: list[str] | None = None) -> int:
     skill_dir = Path(args.skill_dir).expanduser().resolve()
     if not skill_dir.exists():
         emit_error(
-            "recommend_scripts", f"path does not exist: {skill_dir}",
+            "recommend_scripts",
+            f"path does not exist: {skill_dir}",
             code="recommend.input.not-found",
             hint="Check the path and try again.",
         )
         return 2
     if not skill_dir.is_dir():
         emit_error(
-            "recommend_scripts", f"not a directory: {skill_dir}",
+            "recommend_scripts",
+            f"not a directory: {skill_dir}",
             code="recommend.input.not-dir",
             hint="Argument must be a skill directory, not a file.",
         )

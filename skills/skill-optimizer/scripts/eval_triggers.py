@@ -300,7 +300,8 @@ def main(argv: list[str] | None = None) -> int:
     queries_path = Path(args.queries).expanduser().resolve()
     if not queries_path.is_file():
         emit_error(
-            "eval_triggers", f"queries file not found: {queries_path}",
+            "eval_triggers",
+            f"queries file not found: {queries_path}",
             code="eval.input.not-found",
             hint="Check the --queries path.",
         )
