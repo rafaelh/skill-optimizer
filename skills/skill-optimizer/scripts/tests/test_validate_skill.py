@@ -193,7 +193,7 @@ class TestCli:
         data = json.loads(result.stdout)
         for issue in data["issues"]:
             assert {"severity", "code", "message"} <= set(issue.keys())
-            assert issue["severity"] in ("fail", "warn")
+            assert issue["severity"] in {"fail", "warn"}
 
     def test_not_a_directory_exits_2(self, tmp_path: Path) -> None:
         not_dir = tmp_path / "file.md"

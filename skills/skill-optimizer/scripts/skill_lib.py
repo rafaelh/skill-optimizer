@@ -7,7 +7,9 @@ Stdlib only.
 
 from __future__ import annotations
 
+import json
 import re
+import sys
 from typing import Any
 
 # Terminal escape sequences (ESC-initiated). Catches the common forms;
@@ -164,3 +166,19 @@ def sanitize_for_echo(value: Any, max_len: int = 200) -> str:
     if len(out) > max_len:
         out = out[: max_len - 1] + "…"
     return out
+
+
+def emit_error(
+    script: str, message: str, *, code: str | None = None, hint: str | None = None
+) -> None:
+    """Emit structured error JSON to stderr.
+
+    Provides a consistent shape for agent consumption:
+    {"error": <message>, "code": <dotted-code>, "hint": <recovery suggestion>}
+    """
+    payload: dict[str, str] = {"error": sanitize_for_echo(message, max_len=500)}
+    if code:
+        payload["code"] = code
+    if hint:
+        payload["hint"] = hint
+    print(json.dumps(payload), file=sys.stderr)

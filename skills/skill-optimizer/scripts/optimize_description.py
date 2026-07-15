@@ -39,7 +39,7 @@ import sys
 from typing import Any
 
 from eval_triggers import EvalSummary, evaluate, load_queries
-from skill_lib import parse_frontmatter, sanitize_for_echo
+from skill_lib import emit_error, parse_frontmatter, sanitize_for_echo
 
 DEFAULT_ROUNDS = 3
 DEFAULT_CANDIDATES = 3
@@ -336,6 +336,10 @@ def _emit_json(result: OptimizationResult) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Iterate skill descriptions toward higher validation pass rate.",
+        epilog="Examples:\n"
+        "  optimize_description.py ./my-skill --queries queries.json\n"
+        "  optimize_description.py ./my-skill --queries q.json --rounds 5 --apply\n"
+        "  optimize_description.py ./my-skill --queries q.json --json\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("skill_dir", help="Path to the skill directory")
@@ -364,16 +368,27 @@ def main(argv: list[str] | None = None) -> int:
 
     skill_dir = Path(args.skill_dir).expanduser().resolve()
     if not skill_dir.is_dir():
-        print(f"optimize_description: not a directory: {skill_dir}", file=sys.stderr)
+        emit_error(
+            "optimize_description", f"not a directory: {skill_dir}",
+            code="optimize.input.not-dir",
+            hint="First argument must be a skill directory.",
+        )
         return 2
     queries_path = Path(args.queries).expanduser().resolve()
     if not queries_path.is_file():
-        print(f"optimize_description: queries file not found: {queries_path}", file=sys.stderr)
+        emit_error(
+            "optimize_description",
+            f"queries file not found: {queries_path}",
+            code="optimize.input.not-found",
+            hint="Check the --queries path.",
+        )
         return 2
     if shutil.which(args.cli_bin) is None:
-        print(
-            f"optimize_description: '{args.cli_bin}' not found on PATH.",
-            file=sys.stderr,
+        emit_error(
+            "optimize_description",
+            f"'{args.cli_bin}' not found on PATH.",
+            code="optimize.input.cli-missing",
+            hint="Install the CLI or specify --cli-bin.",
         )
         return 2
 
@@ -389,7 +404,7 @@ def main(argv: list[str] | None = None) -> int:
             apply=args.apply,
         )
     except (FileNotFoundError, ValueError, TypeError) as exc:
-        print(f"optimize_description: {exc}", file=sys.stderr)
+        emit_error("optimize_description", str(exc), code="optimize.run.error")
         return 2
 
     if use_json:

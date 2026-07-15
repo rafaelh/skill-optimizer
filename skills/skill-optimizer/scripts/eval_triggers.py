@@ -31,7 +31,7 @@ import subprocess
 import sys
 from typing import Any
 
-from skill_lib import sanitize_for_echo
+from skill_lib import emit_error, sanitize_for_echo
 
 DEFAULT_RUNS = 3
 DEFAULT_TRAIN_SPLIT = 0.6
@@ -245,6 +245,10 @@ def _emit_json(summary: EvalSummary) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run a trigger-rate eval against a labeled query set.",
+        epilog="Examples:\n"
+        "  eval_triggers.py --queries queries.json --skill-name my-skill\n"
+        "  eval_triggers.py --queries queries.json --skill-name my-skill --runs 5 --json\n"
+        "  eval_triggers.py --queries queries.json --skill-name my-skill --dry-run\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -295,21 +299,26 @@ def main(argv: list[str] | None = None) -> int:
 
     queries_path = Path(args.queries).expanduser().resolve()
     if not queries_path.is_file():
-        print(f"eval_triggers: queries file not found: {queries_path}", file=sys.stderr)
+        emit_error(
+            "eval_triggers", f"queries file not found: {queries_path}",
+            code="eval.input.not-found",
+            hint="Check the --queries path.",
+        )
         return 2
 
     if not args.dry_run and shutil.which(args.cli_bin) is None:
-        print(
-            f"eval_triggers: '{args.cli_bin}' not found on PATH. "
-            f"Use --dry-run to validate inputs without invoking the CLI.",
-            file=sys.stderr,
+        emit_error(
+            "eval_triggers",
+            f"'{args.cli_bin}' not found on PATH.",
+            code="eval.input.cli-missing",
+            hint="Use --dry-run to validate inputs without invoking the CLI.",
         )
         return 2
 
     try:
         queries = load_queries(queries_path)
     except ValueError as exc:
-        print(f"eval_triggers: {exc}", file=sys.stderr)
+        emit_error("eval_triggers", str(exc), code="eval.input.invalid-queries")
         return 2
 
     summary = evaluate(

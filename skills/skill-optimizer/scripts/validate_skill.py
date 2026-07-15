@@ -24,7 +24,7 @@ import re
 import sys
 from typing import Any
 
-from skill_lib import parse_frontmatter, sanitize_for_echo
+from skill_lib import emit_error, parse_frontmatter, sanitize_for_echo
 
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _MD_LINK_RE = re.compile(r"\]\(([^)]+\.md)\)")
@@ -292,10 +292,17 @@ def main(argv: list[str] | None = None) -> int:
 
     skill_dir = Path(args.skill_dir).expanduser().resolve()
     if not skill_dir.exists():
-        print(f"validate_skill: path does not exist: {skill_dir}", file=sys.stderr)
+        emit_error(
+            "validate_skill", f"path does not exist: {skill_dir}",
+            code="validate.input.not-found", hint="Check the path and try again.",
+        )
         return 2
     if not skill_dir.is_dir():
-        print(f"validate_skill: not a directory: {skill_dir}", file=sys.stderr)
+        emit_error(
+            "validate_skill", f"not a directory: {skill_dir}",
+            code="validate.input.not-dir",
+            hint="Argument must be a skill directory, not a file.",
+        )
         return 2
 
     issues = validate(skill_dir)

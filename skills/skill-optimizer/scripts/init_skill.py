@@ -29,7 +29,7 @@ from pathlib import Path
 import re
 import sys
 
-from skill_lib import sanitize_for_echo
+from skill_lib import emit_error, sanitize_for_echo
 
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 MAX_NAME = 64
@@ -214,6 +214,10 @@ def _emit_json(skill_dir: Path, created: list[CreatedFile]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Scaffold a new agent skill from the bundled templates.",
+        epilog="Examples:\n"
+        "  init_skill.py ~/.claude/skills --name my-tool --description 'Use when ...'\n"
+        "  init_skill.py ./skills --name helper --description 'Helps with X' --minimal\n"
+        "  init_skill.py ./skills --name helper --description 'Helps' --force --json\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("parent_dir", help="Parent directory under which <name>/ will be created")
@@ -246,10 +250,18 @@ def main(argv: list[str] | None = None) -> int:
 
     parent = Path(args.parent_dir).expanduser().resolve()
     if not parent.exists():
-        print(f"init_skill: parent does not exist: {parent}", file=sys.stderr)
+        emit_error(
+            "init_skill", f"parent does not exist: {parent}",
+            code="init.input.not-found",
+            hint="Check the parent directory path.",
+        )
         return 2
     if not parent.is_dir():
-        print(f"init_skill: parent is not a directory: {parent}", file=sys.stderr)
+        emit_error(
+            "init_skill", f"parent is not a directory: {parent}",
+            code="init.input.not-dir",
+            hint="First argument must be a directory.",
+        )
         return 2
 
     try:
@@ -261,10 +273,14 @@ def main(argv: list[str] | None = None) -> int:
             force=args.force,
         )
     except FileExistsError as exc:
-        print(f"init_skill: {exc}", file=sys.stderr)
+        emit_error(
+            "init_skill", str(exc),
+            code="init.conflict.exists",
+            hint="Use --force to write into existing directory.",
+        )
         return 1
     except ValueError as exc:
-        print(f"init_skill: {exc}", file=sys.stderr)
+        emit_error("init_skill", str(exc), code="init.input.invalid")
         return 1
 
     if use_json:

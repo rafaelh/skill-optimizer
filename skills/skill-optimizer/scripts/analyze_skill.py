@@ -26,7 +26,7 @@ from pathlib import Path
 import re
 import sys
 
-from skill_lib import parse_frontmatter, sanitize_for_echo
+from skill_lib import emit_error, parse_frontmatter, sanitize_for_echo
 
 GENERIC_PHRASES = (
     r"\bhandle errors appropriately\b",
@@ -295,10 +295,17 @@ def main(argv: list[str] | None = None) -> int:
 
     skill_dir = Path(args.skill_dir).expanduser().resolve()
     if not skill_dir.exists():
-        print(f"analyze_skill: path does not exist: {skill_dir}", file=sys.stderr)
+        emit_error(
+            "analyze_skill", f"path does not exist: {skill_dir}",
+            code="analyze.input.not-found", hint="Check the path and try again.",
+        )
         return 2
     if not skill_dir.is_dir():
-        print(f"analyze_skill: not a directory: {skill_dir}", file=sys.stderr)
+        emit_error(
+            "analyze_skill", f"not a directory: {skill_dir}",
+            code="analyze.input.not-dir",
+            hint="Argument must be a skill directory, not a file.",
+        )
         return 2
 
     issues = analyze(skill_dir)

@@ -38,7 +38,7 @@ from pathlib import Path
 import re
 import sys
 
-from skill_lib import parse_frontmatter, sanitize_for_echo
+from skill_lib import emit_error, parse_frontmatter, sanitize_for_echo
 
 DEFAULT_THRESHOLD = 0.5
 TOP_SHARED_KEYWORDS = 8
@@ -290,6 +290,10 @@ def _emit_json(skills: list[SkillEntry], overlaps: list[OverlapPair]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Detect description overlap between agent skills.",
+        epilog="Examples:\n"
+        "  detect_skill_overlap.py ~/.claude/skills/\n"
+        "  detect_skill_overlap.py ./my-skill --against ~/.claude/skills/ --json\n"
+        "  detect_skill_overlap.py ./skills --threshold 0.4\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -322,23 +326,44 @@ def main(argv: list[str] | None = None) -> int:
 
     target = Path(args.target).expanduser().resolve()
     if not target.exists():
-        print(f"detect_skill_overlap: target does not exist: {target}", file=sys.stderr)
+        emit_error(
+            "detect_skill_overlap", f"target does not exist: {target}",
+            code="overlap.input.not-found",
+            hint="Check the path and try again.",
+        )
         return 2
     if not target.is_dir():
-        print(f"detect_skill_overlap: target is not a directory: {target}", file=sys.stderr)
+        emit_error(
+            "detect_skill_overlap", f"target is not a directory: {target}",
+            code="overlap.input.not-dir",
+            hint="Argument must be a directory.",
+        )
         return 2
 
     against = None
     if args.against:
         against = Path(args.against).expanduser().resolve()
         if not against.is_dir():
-            print(f"detect_skill_overlap: --against is not a directory: {against}", file=sys.stderr)
+            emit_error(
+                "detect_skill_overlap",
+                f"--against is not a directory: {against}",
+                code="overlap.input.not-dir",
+                hint="--against must point to an existing directory.",
+            )
             return 2
 
     try:
         skills, overlaps = detect(target, against=against, threshold=args.threshold)
     except ValueError as exc:
-        print(f"detect_skill_overlap: {exc}", file=sys.stderr)
+        msg = str(exc)
+        if "no skills" in msg:
+            emit_error(
+                "detect_skill_overlap", msg,
+                code="overlap.detect.not-found",
+                hint="Ensure the directory contains subdirectories with SKILL.md files.",
+            )
+            return 3
+        emit_error("detect_skill_overlap", msg, code="overlap.detect.error")
         return 2
 
     if use_json:

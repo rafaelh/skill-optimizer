@@ -44,6 +44,18 @@ DEFAULT_MODEL = "claude-sonnet-4-6"
 HEURISTIC_CHARS_PER_TOKEN = 3.5
 
 
+def emit_error(
+    script: str, message: str, *, code: str | None = None, hint: str | None = None
+) -> None:
+    """Emit structured error JSON to stderr."""
+    payload: dict[str, str] = {"error": message}
+    if code:
+        payload["code"] = code
+    if hint:
+        payload["hint"] = hint
+    print(json.dumps(payload), file=sys.stderr)
+
+
 def count(text: str, model: str = DEFAULT_MODEL) -> dict[str, Any]:
     """Return {tokens, method, exact, model?}."""
     if os.environ.get("ANTHROPIC_API_KEY"):
@@ -116,6 +128,10 @@ def _emit_json(target: str, result: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Count tokens in a file or stdin (Anthropic tokenizer when available).",
+        epilog="Examples:\n"
+        "  count_tokens.py path/to/SKILL.md\n"
+        "  count_tokens.py path/to/SKILL.md --json\n"
+        "  echo 'hello' | count_tokens.py - --model claude-sonnet-4-6\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("target", help="Path to a UTF-8 text file, or '-' for stdin")
@@ -138,7 +154,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         text = _read_input(args.target)
     except (FileNotFoundError, IsADirectoryError) as exc:
-        print(f"count_tokens: {exc}", file=sys.stderr)
+        emit_error(
+            "count_tokens", str(exc),
+            code="count.input.not-found",
+            hint="Provide a valid file path or '-' for stdin.",
+        )
         return 2
 
     result = count(text, model=args.model)
