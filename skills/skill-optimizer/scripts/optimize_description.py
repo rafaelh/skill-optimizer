@@ -4,7 +4,7 @@
 Wraps the manual loop documented in references/evaluation.md:
 
   1. Evaluate the current description on train + validation.
-  2. For each round, generate N candidate revisions via `claude -p`,
+  2. For each round, generate N candidate revisions via the agent CLI,
      each one targeted at the train-set failures.
   3. Evaluate every candidate.
   4. Repeat for `--rounds` rounds, keeping the candidates from each round
@@ -24,7 +24,7 @@ Usage:
 Exit codes:
     0   ran successfully (with or without applying)
     1   no candidate beat the baseline (caller may still inspect output)
-    2   bad invocation (missing files, claude unavailable)
+    2   bad invocation (missing files, CLI unavailable)
 """
 
 from __future__ import annotations
@@ -80,40 +80,6 @@ def _read_skill_md(skill_dir: Path) -> tuple[str, dict[str, Any], str]:
     return text, fm, body
 
 
-def _evaluate_description(
-    description: str,
-    queries: list[dict[str, Any]],
-    *,
-    skill_name: str,
-    runs: int,
-    train_split: float,
-    claude_bin: str,
-) -> EvalSummary:
-    """Evaluate a candidate description by patching the skill in a tmp dir.
-
-    eval_triggers.evaluate() doesn't itself write to SKILL.md — it only
-    invokes `claude -p`. Since the agent under test reads its own skill
-    directory at runtime, we don't need to write the candidate anywhere
-    physically; the skill_name is the only handle. The trade-off: the
-    eval measures the *current* description loaded by claude, not the
-    candidate. So we have to write the candidate before evaluating, then
-    restore.
-
-    This function does not write to disk — see _evaluate_candidate for that.
-    Here we just call eval_triggers and return the summary.
-    """
-    # Note: queries get split assignments in-place by evaluate(); we copy
-    # the list per call so candidates after the first start with the same
-    # original splits.
-    return evaluate(
-        [dict(q) for q in queries],
-        skill_name=skill_name,
-        runs=runs,
-        train_split=train_split,
-        claude_bin=claude_bin,
-    )
-
-
 def _evaluate_candidate(
     skill_dir: Path,
     description: str,
@@ -122,7 +88,7 @@ def _evaluate_candidate(
     skill_name: str,
     runs: int,
     train_split: float,
-    claude_bin: str,
+    cli_bin: str,
 ) -> EvalSummary:
     """Write the candidate to SKILL.md, run the eval, restore."""
     skill_md = skill_dir / "SKILL.md"
@@ -130,13 +96,14 @@ def _evaluate_candidate(
     try:
         new_text = _replace_description(original, description)
         skill_md.write_text(new_text, encoding="utf-8")
-        return _evaluate_description(
-            description,
-            queries,
+        # queries get split assignments in-place by evaluate(); copy
+        # per call so candidates start with the same original splits.
+        return evaluate(
+            [dict(q) for q in queries],
             skill_name=skill_name,
             runs=runs,
             train_split=train_split,
-            claude_bin=claude_bin,
+            cli_bin=cli_bin,
         )
     finally:
         skill_md.write_text(original, encoding="utf-8")
@@ -183,9 +150,9 @@ def _generate_candidates(
     failures: list[dict[str, Any]],
     n: int,
     *,
-    claude_bin: str,
+    cli_bin: str,
 ) -> list[str]:
-    """Use claude -p to generate N candidate revisions addressing failures."""
+    """Use the agent CLI to generate N candidate revisions addressing failures."""
     if not failures:
         return []
     failure_lines = "\n".join(
@@ -194,7 +161,7 @@ def _generate_candidates(
         for f in failures
     )
     prompt = (
-        "You are tuning a Claude Agent Skill description. The description is the "
+        "You are tuning an Agent Skill description. The description is the "
         "ONLY field the agent uses to decide whether to activate the skill. "
         f"It must stay under {MAX_DESCRIPTION} characters and use imperative phrasing "
         "('Use this skill when...' not 'This skill does...').\n\n"
@@ -208,7 +175,7 @@ def _generate_candidates(
         "No preamble, no numbering."
     )
     result = subprocess.run(
-        [claude_bin, "-p", prompt],
+        [cli_bin, "-p", prompt],
         capture_output=True,
         text=True,
         check=True,
@@ -227,7 +194,7 @@ def optimize(
     candidates_per_round: int = DEFAULT_CANDIDATES,
     runs: int = DEFAULT_RUNS,
     train_split: float = DEFAULT_TRAIN_SPLIT,
-    claude_bin: str = "claude",
+    cli_bin: str = "claude",
     apply: bool = False,
 ) -> OptimizationResult:
     _, fm, _ = _read_skill_md(skill_dir)
@@ -247,7 +214,7 @@ def optimize(
         skill_name=skill_name,
         runs=runs,
         train_split=train_split,
-        claude_bin=claude_bin,
+        cli_bin=cli_bin,
     )
     baseline = Candidate(
         description=current_description,
@@ -270,7 +237,7 @@ def optimize(
             last_description,
             train_failures,
             candidates_per_round,
-            claude_bin=claude_bin,
+            cli_bin=cli_bin,
         )
         for cand_text in candidate_texts:
             cand_summary = _evaluate_candidate(
@@ -280,7 +247,7 @@ def optimize(
                 skill_name=skill_name,
                 runs=runs,
                 train_split=train_split,
-                claude_bin=claude_bin,
+                cli_bin=cli_bin,
             )
             candidates.append(
                 Candidate(
@@ -296,13 +263,14 @@ def optimize(
         if round_candidates:
             best = max(round_candidates, key=lambda c: c.validation_pass_rate)
             last_description = best.description
-            last_summary = _evaluate_description(
+            last_summary = _evaluate_candidate(
+                skill_dir,
                 best.description,
                 queries,
                 skill_name=skill_name,
                 runs=runs,
                 train_split=train_split,
-                claude_bin=claude_bin,
+                cli_bin=cli_bin,
             )
 
     winner = max(candidates, key=lambda c: (c.validation_pass_rate, c.train_pass_rate))
@@ -376,7 +344,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--candidates", type=int, default=DEFAULT_CANDIDATES)
     parser.add_argument("--runs", type=int, default=DEFAULT_RUNS)
     parser.add_argument("--train-split", type=float, default=DEFAULT_TRAIN_SPLIT)
-    parser.add_argument("--claude-bin", default="claude")
+    parser.add_argument(
+        "--cli-bin",
+        default="claude",
+        help="Path to the agent CLI binary (default: 'claude'). Supports claude, copilot, codex.",
+    )
     parser.add_argument(
         "--apply",
         action="store_true",
@@ -393,9 +365,9 @@ def main(argv: list[str] | None = None) -> int:
     if not queries_path.is_file():
         print(f"optimize_description: queries file not found: {queries_path}", file=sys.stderr)
         return 2
-    if shutil.which(args.claude_bin) is None:
+    if shutil.which(args.cli_bin) is None:
         print(
-            f"optimize_description: '{args.claude_bin}' not found on PATH.",
+            f"optimize_description: '{args.cli_bin}' not found on PATH.",
             file=sys.stderr,
         )
         return 2
@@ -408,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
             candidates_per_round=args.candidates,
             runs=args.runs,
             train_split=args.train_split,
-            claude_bin=args.claude_bin,
+            cli_bin=args.cli_bin,
             apply=args.apply,
         )
     except (FileNotFoundError, ValueError, TypeError) as exc:

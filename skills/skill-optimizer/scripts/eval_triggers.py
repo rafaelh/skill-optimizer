@@ -2,8 +2,9 @@
 """Run a trigger-rate eval against a labeled query set.
 
 Inputs a JSON array of `{query, should_trigger, [notes], [split]}` objects
-(see assets/schemas/eval-queries.schema.json), invokes `claude -p
---output-format json` per query --runs times, and counts how often the named
+(see assets/schemas/eval-queries.schema.json), invokes the configured agent
+CLI (`--cli-bin`, default `claude`) with `-p --output-format json` per query
+`--runs` times, and counts how often the named
 skill activates. Computes per-query trigger rate plus train/validation pass
 rates so you can iterate on the description without overfitting.
 
@@ -16,7 +17,7 @@ Usage:
 Exit codes:
     0   eval ran successfully
     1   one or more queries failed (rate inverted from expectation)
-    2   bad invocation (file missing, schema violation, claude unavailable)
+    2   bad invocation (file missing, schema violation, CLI unavailable)
 """
 
 from __future__ import annotations
@@ -102,14 +103,14 @@ def assign_splits(queries: list[dict[str, Any]], train_fraction: float) -> None:
         q["split"] = "train" if i < train_neg else "validation"
 
 
-def run_query(query: str, *, claude_bin: str = "claude") -> dict[str, Any]:
-    """Invoke `claude -p --output-format json` for a single query.
+def run_query(query: str, *, cli_bin: str = "claude") -> dict[str, Any]:
+    """Invoke `<cli> -p --output-format json` for a single query.
 
-    Returns the parsed JSON response. Raises CalledProcessError if claude
+    Returns the parsed JSON response. Raises CalledProcessError if the CLI
     fails or RuntimeError if the output isn't JSON.
     """
     result = subprocess.run(
-        [claude_bin, "-p", query, "--output-format", "json"],
+        [cli_bin, "-p", query, "--output-format", "json"],
         capture_output=True,
         text=True,
         check=True,
@@ -118,13 +119,13 @@ def run_query(query: str, *, claude_bin: str = "claude") -> dict[str, Any]:
         return json.loads(result.stdout)  # type: ignore[no-any-return]
     except json.JSONDecodeError as exc:
         raise RuntimeError(
-            f"claude returned non-JSON output: {sanitize_for_echo(result.stdout, 200)!r}"
+            f"CLI returned non-JSON output: {sanitize_for_echo(result.stdout, 200)!r}"
         ) from exc
 
 
-def did_skill_trigger(claude_response: dict[str, Any], skill_name: str) -> bool:
-    """Inspect a claude -p JSON response for a Skill tool use matching skill_name."""
-    messages = claude_response.get("messages") or []
+def did_skill_trigger(cli_response: dict[str, Any], skill_name: str) -> bool:
+    """Inspect a CLI JSON response for a Skill tool use matching skill_name."""
+    messages = cli_response.get("messages") or []
     if not isinstance(messages, list):
         return False
     for message in messages:
@@ -146,57 +147,70 @@ def did_skill_trigger(claude_response: dict[str, Any], skill_name: str) -> bool:
     return False
 
 
+def _evaluate_query(
+    q: dict[str, Any],
+    *,
+    skill_name: str,
+    runs: int,
+    cli_bin: str,
+    dry_run: bool,
+) -> QueryResult:
+    """Run a single query against the CLI and classify the result."""
+    triggers = 0
+    if not dry_run:
+        triggers = sum(
+            did_skill_trigger(run_query(q["query"], cli_bin=cli_bin), skill_name)
+            for _ in range(runs)
+        )
+    rate = triggers / runs if runs else 0.0
+    passed = (q["should_trigger"] and rate > TRIGGER_THRESHOLD) or (
+        not q["should_trigger"] and rate < TRIGGER_THRESHOLD
+    )
+    if passed:
+        code = "eval.query.passed"
+    elif q["should_trigger"]:
+        code = "eval.query.no-trigger"
+    else:
+        code = "eval.query.false-trigger"
+    return QueryResult(
+        query=q["query"],
+        should_trigger=q["should_trigger"],
+        triggers=triggers,
+        runs=runs,
+        rate=rate,
+        passed=passed,
+        split=q["split"],
+        code=code,
+        notes=q.get("notes"),
+    )
+
+
+def _pass_rate(results: list[QueryResult]) -> float:
+    """Compute the fraction of results that passed."""
+    return sum(r.passed for r in results) / len(results) if results else 0.0
+
+
 def evaluate(
     queries: list[dict[str, Any]],
     *,
     skill_name: str,
     runs: int = DEFAULT_RUNS,
     train_split: float = DEFAULT_TRAIN_SPLIT,
-    claude_bin: str = "claude",
+    cli_bin: str = "claude",
     dry_run: bool = False,
 ) -> EvalSummary:
     assign_splits(queries, train_split)
     summary = EvalSummary(skill_name=skill_name, runs_per_query=runs, train_split=train_split)
 
     for q in queries:
-        triggers = 0
-        if not dry_run:
-            for _ in range(runs):
-                response = run_query(q["query"], claude_bin=claude_bin)
-                if did_skill_trigger(response, skill_name):
-                    triggers += 1
-        rate = triggers / runs if runs else 0.0
-        passed = (q["should_trigger"] and rate > TRIGGER_THRESHOLD) or (
-            not q["should_trigger"] and rate < TRIGGER_THRESHOLD
-        )
-        if passed:
-            code = "eval.query.passed"
-        elif q["should_trigger"]:
-            code = "eval.query.no-trigger"
-        else:
-            code = "eval.query.false-trigger"
         summary.by_query.append(
-            QueryResult(
-                query=q["query"],
-                should_trigger=q["should_trigger"],
-                triggers=triggers,
-                runs=runs,
-                rate=rate,
-                passed=passed,
-                split=q["split"],
-                code=code,
-                notes=q.get("notes"),
-            )
+            _evaluate_query(q, skill_name=skill_name, runs=runs, cli_bin=cli_bin, dry_run=dry_run)
         )
 
     train_results = [r for r in summary.by_query if r.split == "train"]
     val_results = [r for r in summary.by_query if r.split == "validation"]
-    summary.train_pass_rate = (
-        sum(1 for r in train_results if r.passed) / len(train_results) if train_results else 0.0
-    )
-    summary.validation_pass_rate = (
-        sum(1 for r in val_results if r.passed) / len(val_results) if val_results else 0.0
-    )
+    summary.train_pass_rate = _pass_rate(train_results)
+    summary.validation_pass_rate = _pass_rate(val_results)
     return summary
 
 
@@ -256,14 +270,17 @@ def main(argv: list[str] | None = None) -> int:
         help=f"Fraction of queries assigned to train (default: {DEFAULT_TRAIN_SPLIT}).",
     )
     parser.add_argument(
-        "--claude-bin",
+        "--cli-bin",
         default="claude",
-        help="Path to the claude CLI (default: 'claude' on PATH).",
+        help=(
+            "Path to the agent CLI binary (default: 'claude' on PATH)."
+            " Supports claude, copilot, codex."
+        ),
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Validate inputs and assignments, but skip the actual claude calls.",
+        help="Validate inputs and assignments, but skip the actual CLI calls.",
     )
     parser.add_argument(
         "--json",
@@ -278,10 +295,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"eval_triggers: queries file not found: {queries_path}", file=sys.stderr)
         return 2
 
-    if not args.dry_run and shutil.which(args.claude_bin) is None:
+    if not args.dry_run and shutil.which(args.cli_bin) is None:
         print(
-            f"eval_triggers: '{args.claude_bin}' not found on PATH. "
-            f"Use --dry-run to validate inputs without invoking claude.",
+            f"eval_triggers: '{args.cli_bin}' not found on PATH. "
+            f"Use --dry-run to validate inputs without invoking the CLI.",
             file=sys.stderr,
         )
         return 2
@@ -297,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
         skill_name=args.skill_name,
         runs=args.runs,
         train_split=args.train_split,
-        claude_bin=args.claude_bin,
+        cli_bin=args.cli_bin,
         dry_run=args.dry_run,
     )
 

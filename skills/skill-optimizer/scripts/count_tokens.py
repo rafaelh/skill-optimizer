@@ -5,7 +5,7 @@
 #   "anthropic>=0.40.0",
 # ]
 # ///
-"""Count tokens in a file or stdin (Claude tokenizer when possible).
+"""Count tokens in a file or stdin (Anthropic tokenizer when possible).
 
 Two-tier strategy:
 
@@ -14,7 +14,7 @@ Two-tier strategy:
    it doesn't burn output tokens.
 
 2. Otherwise fall back to a heuristic (`len(text) / 3.5`), which is closer to
-   Claude's actual chars-per-token than the older `len // 4` rule of thumb.
+   typical LLM chars-per-token ratios than the older `len // 4` rule of thumb.
 
 The script never blocks on the slow path: graceful fallback means the agent
 always gets *some* answer, with `exact: false` so it knows to interpret it as
@@ -99,7 +99,7 @@ def _read_input(target: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _emit_text(target: str, result: dict[str, Any]) -> None:
+def _emit_text(result: dict[str, Any]) -> None:
     method = result["method"]
     exact = "exact" if result["exact"] else "estimate"
     suffix = f" (model={result['model']})" if "model" in result else ""
@@ -115,7 +115,7 @@ def _emit_json(target: str, result: dict[str, Any]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Count tokens in a file or stdin (Claude tokenizer when available).",
+        description="Count tokens in a file or stdin (Anthropic tokenizer when available).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("target", help="Path to a UTF-8 text file, or '-' for stdin")
@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.as_json:
         _emit_json(args.target, result)
     else:
-        _emit_text(args.target, result)
+        _emit_text(result)
     return 0
 
 

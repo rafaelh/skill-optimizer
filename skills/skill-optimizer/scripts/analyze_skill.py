@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze a Claude skill for content anti-patterns.
+"""Analyze an agent skill for content anti-patterns.
 
 Heuristic checks: declarative description openings, missing trigger contexts,
 body too long for progressive disclosure, generic filler phrases, references
@@ -53,7 +53,6 @@ MAX_BODY_TOKENS = 5000
 MIN_DESCRIPTION_QUALITY = 100
 LARGE_SKILL_TOKENS = 1500
 MEGA_SKILL_H2_COUNT = 12
-SEVERITIES = {"fail", "warn", "info"}
 
 _REFERENCE_LINK_RE = re.compile(
     r"\[([^\]]+)\]\((references/[^)]+\.md|assets/[^)]+|scripts/[^)]+)\)"
@@ -188,11 +187,9 @@ def _check_body_size(body: str, issues: list[Issue]) -> tuple[int, int, list[str
 
 
 def _check_generic_filler(prose: str, issues: list[Issue]) -> None:
-    seen: set[str] = set()
     for pat in GENERIC_PHRASES:
         m = re.search(pat, prose, re.IGNORECASE)
-        if m and m.group(0).lower() not in seen:
-            seen.add(m.group(0).lower())
+        if m:
             safe = sanitize_for_echo(m.group(0))
             issues.append(
                 Issue(
@@ -268,7 +265,7 @@ def _emit_json(skill_dir: Path, issues: list[Issue]) -> None:
             }
     payload = {
         "skill_dir": str(skill_dir),
-        "issues": [asdict(i) for i in issues if i.code != "stats"],
+        "issues": [asdict(i) for i in issues if i.code != "analyze.stats"],
         "stats": stats,
     }
     print(json.dumps(payload, indent=2))
@@ -276,9 +273,9 @@ def _emit_json(skill_dir: Path, issues: list[Issue]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Analyze a Claude skill for content anti-patterns.",
+        description="Analyze an agent skill for content anti-patterns.",
         epilog="Examples:\n"
-        "  analyze_skill.py ~/.claude/skills/my-skill\n"
+        "  analyze_skill.py path/to/my-skill\n"
         "  analyze_skill.py ./skill --json\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

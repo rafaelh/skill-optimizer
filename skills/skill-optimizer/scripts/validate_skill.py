@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a Claude skill against the Agent Skills specification.
+"""Validate an agent skill against the Agent Skills specification.
 
 Usage:
     validate_skill.py <skill-directory> [--json] [--exit-on-warn]
@@ -42,7 +42,7 @@ ALLOWED_KEYS = frozenset(
         "compatibility",
         "metadata",
         "allowed-tools",
-        # Claude Code extensions
+        # Platform extensions (Claude Code, Copilot, Codex, VS Code)
         "when_to_use",
         "argument-hint",
         "arguments",
@@ -205,7 +205,7 @@ def _check_references(skill_dir: Path, body: str, issues: list[Issue]) -> None:
 
     def _within_skill(target: Path) -> bool:
         try:
-            target.resolve().relative_to(skill_root)
+            target.relative_to(skill_root)
         except ValueError:
             return False
         return True
@@ -253,27 +253,26 @@ def _summary(issues: list[Issue]) -> dict[str, Any]:
     return {"fail": fails, "warn": warns, "ok": fails == 0}
 
 
-def _emit_text(skill_dir: Path, issues: list[Issue]) -> None:
+def _emit_text(issues: list[Issue], summary: dict[str, Any]) -> None:
     for issue in issues:
         print(issue.to_line())
-    s = _summary(issues)
-    print(f"\n{s['fail']} fail(s), {s['warn']} warning(s)")
+    print(f"\n{summary['fail']} fail(s), {summary['warn']} warning(s)")
 
 
-def _emit_json(skill_dir: Path, issues: list[Issue]) -> None:
+def _emit_json(skill_dir: Path, issues: list[Issue], summary: dict[str, Any]) -> None:
     payload = {
         "skill_dir": str(skill_dir),
         "issues": [asdict(i) for i in issues],
-        "summary": _summary(issues),
+        "summary": summary,
     }
     print(json.dumps(payload, indent=2))
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Validate a Claude skill against the Agent Skills specification.",
+        description="Validate an agent skill against the Agent Skills specification.",
         epilog="Examples:\n"
-        "  validate_skill.py ~/.claude/skills/my-skill\n"
+        "  validate_skill.py path/to/my-skill\n"
         "  validate_skill.py ./skill --json\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -295,16 +294,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     issues = validate(skill_dir)
+    summary = _summary(issues)
     if args.as_json:
-        _emit_json(skill_dir, issues)
+        _emit_json(skill_dir, issues, summary)
     else:
-        _emit_text(skill_dir, issues)
+        _emit_text(issues, summary)
 
-    fails = sum(1 for i in issues if i.severity == "fail")
-    warns = sum(1 for i in issues if i.severity == "warn")
-    if fails:
+    if summary["fail"]:
         return 1
-    if args.exit_on_warn and warns:
+    if args.exit_on_warn and summary["warn"]:
         return 1
     return 0
 

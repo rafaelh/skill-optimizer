@@ -13,7 +13,7 @@ One nuance: agents typically only consult skills for tasks they can't easily han
 
 ## `description` vs `when_to_use`
 
-Claude Code supports a companion field `when_to_use` for supplementary trigger context. The two fields are appended together and shown in the skill listing, **truncated at 1,536 characters combined**. Use `description` for the core identity of the skill; use `when_to_use` for additional trigger phrases, aliases, or domain synonyms that would make `description` feel padded:
+Some platforms (notably Claude Code) support a companion field `when_to_use` for supplementary trigger context. The two fields are appended together and shown in the skill listing, **truncated at 1,536 characters combined**. Use `description` for the core identity of the skill; use `when_to_use` for additional trigger phrases, aliases, or domain synonyms that would make `description` feel padded:
 
 ```yaml
 description: >

@@ -44,14 +44,14 @@ If your description over-triggers on near-misses, the description is keyword-mat
 ## Running a single eval
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/eval_triggers.py" \
+python3 "${SKILL_DIR}/scripts/eval_triggers.py" \
   --queries assets/templates/eval-queries.json.template \
   --skill-name <skill-name> \
   --runs 3 \
   --json
 ```
 
-`eval_triggers.py` invokes `claude -p --output-format json` per query, looks for a `Skill` tool use matching `<skill-name>`, and computes per-query trigger rate over `--runs` invocations. A should-trigger query passes if rate > 0.5; a should-not-trigger passes if rate < 0.5.
+`eval_triggers.py` invokes the configured CLI (`--cli-bin`, default `claude`) with `-p --output-format json` per query, looks for a `Skill` tool use matching `<skill-name>`, and computes per-query trigger rate over `--runs` invocations. A should-trigger query passes if rate > 0.5; a should-not-trigger passes if rate < 0.5.
 
 Output (abbreviated):
 
@@ -82,7 +82,7 @@ Two anti-patterns to avoid:
 - **Don't paste failure-query keywords** into the description. That's overfitting; the next phrasing variation will miss again. Address the underlying *category*.
 - **Don't keep tweaking when stalled.** If three rounds of incremental edits haven't moved the validation rate, try a structurally different framing (lead with intent vs. domain, switch from imperative to question form, reorder triggers).
 
-`optimize_description.py` automates this loop by feeding train failures to `claude -p` for revision candidates, evaluating each, and recording all candidates' validation scores.
+`optimize_description.py` automates this loop by feeding train failures to the agent CLI for revision candidates, evaluating each, and recording all candidates' validation scores.
 
 ## Sanity checks
 

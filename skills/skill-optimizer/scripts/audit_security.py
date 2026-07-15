@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit a Claude skill against the OWASP Agentic Skills Top 10.
+"""Audit an agent skill against the OWASP Agentic Skills Top 10.
 
 Static, high-signal security scan of a skill's SKILL.md, references, and
 bundled scripts. Findings map to the OWASP Agentic Skills Top 10
@@ -47,8 +47,6 @@ import tokenize
 from typing import Any
 
 from skill_lib import _DANGEROUS_UNICODE, parse_frontmatter, sanitize_for_echo
-
-SEVERITIES = {"fail", "warn", "info"}
 
 # --- AST04: hardcoded secrets ------------------------------------------------
 # High-confidence: the token shape itself is the secret, so a hit is reported
@@ -125,12 +123,6 @@ class Finding:
         return f"{prefix}: [{self.code}] ({self.ast}){loc} — {self.message}"
 
 
-def _strip_code_spans(text: str) -> str:
-    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
-    text = re.sub(r"`[^`\n]+`", "", text)
-    return text
-
-
 def _line_of(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
 
@@ -162,7 +154,7 @@ def _blank_strings_and_comments(content: str) -> str:
     lines = content.splitlines(keepends=True)
     try:
         toks = list(tokenize.generate_tokens(io.StringIO(content).readline))
-    except (tokenize.TokenError, IndentationError, SyntaxError):
+    except tokenize.TokenError, IndentationError, SyntaxError:
         return content
     chars = [list(line) for line in lines]
     for tok in toks:
@@ -221,18 +213,18 @@ def audit(skill_dir: Path) -> list[Finding]:
     # only matters in agent-readable text — inside a script it's a subprocess
     # string the shell-injection check already covers, so scanning .py for it
     # just trips on comments that document the pattern.
-    for path in [*text_files, *py_files]:
+    for path in text_files:
         if not path.is_file():
             continue
         rel = path.relative_to(skill_dir)
         content = path.read_text(encoding="utf-8", errors="replace")
         _check_secrets(content, rel, findings)
-        if path.suffix != ".py":
-            _check_curl_pipe_shell(content, rel, findings)
+        _check_curl_pipe_shell(content, rel, findings)
 
     for path in py_files:
         rel = path.relative_to(skill_dir)
         content = path.read_text(encoding="utf-8", errors="replace")
+        _check_secrets(content, rel, findings)
         # Code-construct checks run on source with strings/comments blanked, so
         # they match real calls rather than the same text quoted in a docstring.
         code = _blank_strings_and_comments(content)
@@ -451,9 +443,9 @@ def _emit_json(skill_dir: Path, findings: list[Finding]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Audit a Claude skill against the OWASP Agentic Skills Top 10.",
+        description="Audit an agent skill against the OWASP Agentic Skills Top 10.",
         epilog="Examples:\n"
-        "  audit_security.py ~/.claude/skills/my-skill\n"
+        "  audit_security.py path/to/my-skill\n"
         "  audit_security.py ./skill --json\n"
         "  audit_security.py ./skill --exit-on-warn   # for CI / pre-commit\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,

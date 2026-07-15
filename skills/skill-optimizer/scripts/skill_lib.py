@@ -77,6 +77,17 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any] | None, str]:
     return _parse_simple_yaml(fm_text), body
 
 
+def _collect_indented(lines: list[str], start: int) -> tuple[list[str], int]:
+    """Return (non-empty indented lines, next index) from *start*."""
+    collected: list[str] = []
+    i = start
+    while i < len(lines) and (lines[i].startswith("  ") or not lines[i].strip()):
+        if lines[i].strip():
+            collected.append(lines[i])
+        i += 1
+    return collected, i
+
+
 def _parse_simple_yaml(text: str) -> dict[str, Any]:
     result: dict[str, Any] = {}
     lines = text.splitlines()
@@ -92,24 +103,17 @@ def _parse_simple_yaml(text: str) -> dict[str, Any]:
             continue
         key, value = m.group(1), m.group(2).rstrip()
         if value in _FOLDED_MARKERS:
-            buf: list[str] = []
-            i += 1
-            while i < len(lines) and (lines[i].startswith("  ") or not lines[i].strip()):
-                if lines[i].strip():
-                    buf.append(lines[i].strip())
-                i += 1
+            indented, i = _collect_indented(lines, i + 1)
             sep = " " if value.startswith(">") else "\n"
-            result[key] = sep.join(buf)
+            result[key] = sep.join(ln.strip() for ln in indented)
             continue
         if value == "":
             nested: dict[str, str] = {}
-            i += 1
-            while i < len(lines) and (lines[i].startswith("  ") or not lines[i].strip()):
-                if lines[i].strip():
-                    nm = _NESTED_RE.match(lines[i])
-                    if nm:
-                        nested[nm.group(1)] = _strip_quotes(nm.group(2).strip())
-                i += 1
+            indented, i = _collect_indented(lines, i + 1)
+            for ln in indented:
+                nm = _NESTED_RE.match(ln)
+                if nm:
+                    nested[nm.group(1)] = _strip_quotes(nm.group(2).strip())
             result[key] = nested or ""
             continue
         result[key] = _strip_quotes(value)
@@ -146,12 +150,13 @@ def sanitize_for_echo(value: Any, max_len: int = 200) -> str:
     value = _ANSI_RE.sub("", value)
     cleaned: list[str] = []
     for ch in value:
+        cp = ord(ch)
         if ch in {"\n", "\t"}:
             cleaned.append(ch)
-        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
-            cleaned.append(f"\\x{ord(ch):02x}")
+        elif cp < 0x20 or cp == 0x7F:
+            cleaned.append(f"\\x{cp:02x}")
         elif ch in _DANGEROUS_UNICODE:
-            cleaned.append(f"\\u{ord(ch):04x}")
+            cleaned.append(f"\\u{cp:04x}")
         else:
             cleaned.append(ch)
     out = "".join(cleaned)

@@ -31,7 +31,7 @@ with the actual operation.>
 
 ```bash
 # Example invocation — keep these tight; long blocks belong in scripts/
-python3 "${CLAUDE_SKILL_DIR}/scripts/<name>.py" --json
+python3 "${SKILL_DIR}/scripts/<name>.py" --json
 ```
 
 ### 2. <Second step name>

@@ -12,7 +12,7 @@ SCRIPT = Path(__file__).resolve().parent.parent / "audit_security.py"
 SkillFactory = Callable[..., Path]
 
 _GOOD_DESC = (
-    "Use this skill when the user wants to validate or audit a Claude skill's "
+    "Use this skill when the user wants to validate or audit an agent skill's "
     "SKILL.md file. Trigger when the user mentions skill optimization or activation."
 )
 

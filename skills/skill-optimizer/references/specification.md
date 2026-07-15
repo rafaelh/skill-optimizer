@@ -2,6 +2,16 @@
 
 Source of truth: <https://agentskills.io/specification> for the base spec; <https://docs.anthropic.com/en/skills> for Claude Code extensions. This file captures the parts you need while editing a skill.
 
+## Supported platforms
+
+The base spec (frontmatter fields: `name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`) is platform-agnostic and works across:
+
+- **Claude Code** — full spec + platform extensions
+- **GitHub Copilot / VS Code** — prompt files with SKILL.md-compatible metadata
+- **Codex** — base spec support
+
+Platform-specific extensions (documented below under "Claude Code extensions") may not be recognized by other platforms — they are silently ignored.
+
 ## Directory layout
 
 ```
@@ -43,7 +53,7 @@ metadata:
 | `license`       | No  | License name or path to bundled license file.                                              |
 | `compatibility` | No  | 1–500 chars. Environment requirements (intended product, system packages, network access). |
 | `metadata`      | No  | Map of string keys → string values. Use unique key names to avoid conflicts.               |
-| `allowed-tools` | No  | Tools Claude can use without asking permission when this skill is active.                  |
+| `allowed-tools` | No  | Tools the agent can use without asking permission when this skill is active.                  |
 
 ### Claude Code extensions
 
@@ -52,19 +62,19 @@ metadata:
 | `when_to_use`              | Additional trigger context. Appended to `description` in the skill listing. Combined with `description`, truncated at 1,536 chars in the listing.               |
 | `argument-hint`            | Hint shown during autocomplete. Example: `[issue-number]` or `[filename] [format]`.                                                                            |
 | `arguments`                | Named positional arguments for `$name` substitution. Space-separated string or YAML list.                                                                      |
-| `disable-model-invocation` | `true` to prevent Claude from auto-loading this skill. Use for side-effectful workflows (deploy, commit, send-message). Default: `false`.                      |
+| `disable-model-invocation` | `true` to prevent the agent from auto-loading this skill. Use for side-effectful workflows (deploy, commit, send-message). Default: `false`.                      |
 | `user-invocable`           | `false` to hide from the `/` menu. Use for background knowledge not meant as a direct command. Default: `true`.                                                |
 | `model`                    | Model override while this skill is active. Applies for the current turn only; session model resumes next prompt.                                               |
 | `effort`                   | Effort override: `low`, `medium`, `high`, `xhigh`, `max`. Reverts after the skill's turn.                                                                     |
 | `context`                  | `fork` to run in an isolated subagent context. The skill body becomes the subagent's task prompt.                                                              |
 | `agent`                    | Which subagent type to use with `context: fork`. Options: `Explore`, `Plan`, `general-purpose`, or any custom subagent. Defaults to `general-purpose`.         |
 | `hooks`                    | Hooks scoped to this skill's lifecycle. See Claude Code hooks docs for format.                                                                                  |
-| `paths`                    | Glob patterns limiting when Claude auto-activates the skill. Accepts comma-separated string or YAML list.                                                      |
+| `paths`                    | Glob patterns limiting when the agent auto-activates the skill. Accepts comma-separated string or YAML list.                                                      |
 | `shell`                    | Shell for `` !`command` `` blocks: `bash` (default) or `powershell`.                                                                                           |
 
 **Invocation matrix:**
 
-| Frontmatter                      | User can invoke | Claude can invoke |
+| Frontmatter                      | User can invoke | Agent can invoke |
 |----------------------------------|-----------------|-------------------|
 | (default)                        | Yes             | Yes               |
 | `disable-model-invocation: true` | Yes             | No                |
@@ -106,19 +116,20 @@ Available anywhere in the skill body:
 | `$ARGUMENTS[N]`        | Specific argument by 0-based index.                                                     |
 | `$N`                   | Shorthand for `$ARGUMENTS[N]`.                                                          |
 | `$name`                | Named argument declared in `arguments` frontmatter (maps to positions in order).        |
-| `${CLAUDE_SESSION_ID}` | Current session ID. Useful for per-session log files.                                   |
-| `${CLAUDE_EFFORT}`     | Current effort level (`low` / `medium` / `high` / `xhigh` / `max`).                     |
-| `${CLAUDE_SKILL_DIR}`  | Absolute path to the skill's directory. Use this to reference bundled scripts portably. |
+| `${CLAUDE_SESSION_ID}` | Current session ID. Useful for per-session log files. (Claude Code only)                                  |
+| `${CLAUDE_EFFORT}`     | Current effort level (`low` / `medium` / `high` / `xhigh` / `max`). (Claude Code only)                    |
+| `${CLAUDE_SKILL_DIR}`  | Absolute path to the skill's directory. Claude Code specific; see `${SKILL_DIR}` below.                    |
+| `${SKILL_DIR}`         | Portable alias for the skill's directory. Use this in cross-platform skills. Resolves to `${CLAUDE_SKILL_DIR}` on Claude Code. |
 
-**`${CLAUDE_SKILL_DIR}` is how bundled scripts stay portable across install locations.** Always use it instead of hardcoding paths:
+**`${SKILL_DIR}` (or `${CLAUDE_SKILL_DIR}` on Claude Code) is how bundled scripts stay portable across install locations.** Always use it instead of hardcoding paths:
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/validate_skill.py" <skill-dir>
+python3 "${SKILL_DIR}/scripts/validate_skill.py" <skill-dir>
 ```
 
 ## Dynamic context injection
 
-The `` !`<command>` `` syntax runs a shell command before the skill content is sent to Claude. The output replaces the placeholder inline — Claude sees the result, not the command.
+The `` !`<command>` `` syntax runs a shell command before the skill content is sent to the agent. The output replaces the placeholder inline — the agent sees the result, not the command.
 
 ```yaml
 ---
@@ -144,7 +155,7 @@ git status --short
 ```
 ````
 
-This is preprocessing, not something Claude executes. Claude only sees the rendered output.
+This is preprocessing, not something the agent executes. The agent only sees the rendered output.
 
 ## Body content
 

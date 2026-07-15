@@ -48,7 +48,6 @@ class Opportunity:
 
 
 def recommend(skill_dir: Path) -> list[dict[str, Any]]:
-    skill_dir = Path(skill_dir)
     opps: list[Opportunity] = []
     skill_md = skill_dir / "SKILL.md"
     if not skill_md.exists():
@@ -73,24 +72,13 @@ def recommend(skill_dir: Path) -> list[dict[str, Any]]:
 
 
 def _scan_bash_blocks(body: str, skill_md: Path, opps: list[Opportunity]) -> None:
-    line_starts = [0]
-    for i, ch in enumerate(body):
-        if ch == "\n":
-            line_starts.append(i + 1)
-
-    def line_of(offset: int) -> int:
-        for i in range(len(line_starts) - 1, -1, -1):
-            if line_starts[i] <= offset:
-                return i + 1
-        return 1
-
     for m in _BASH_BLOCK_RE.finditer(body):
         block = m.group(1)
         non_empty = [line for line in block.splitlines() if line.strip()]
         if len(non_empty) < LONG_BASH_LINES:
             continue
-        start_line = line_of(m.start())
-        end_line = line_of(m.end())
+        start_line = body[: m.start()].count("\n") + 1
+        end_line = body[: m.end()].count("\n") + 1
         snippet = sanitize_for_echo(non_empty[0], max_len=80)
         opps.append(
             Opportunity(
@@ -139,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Surface SKILL.md-level opportunities to extract bundled scripts.",
         epilog="Examples:\n"
-        "  recommend_scripts.py ~/.claude/skills/my-skill\n"
+        "  recommend_scripts.py path/to/my-skill\n"
         "  recommend_scripts.py ./skill --json\n"
         "\nFor per-script quality checks, use:\n"
         "  agent-tool-builder/scripts/validate_agent_tool.py <script-path>\n",

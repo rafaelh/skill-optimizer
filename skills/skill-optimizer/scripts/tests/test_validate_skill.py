@@ -25,7 +25,7 @@ def skill(tmp_path: Path) -> SkillFactory:
         if description is None:
             description = (
                 "Use this skill when the user wants to validate or audit a "
-                "Claude skill's SKILL.md file. Trigger when the user mentions "
+                "agent skill's SKILL.md file. Trigger when the user mentions "
                 "skill optimization, skill validation, or skill activation issues."
             )
         skill_dir = tmp_path / name

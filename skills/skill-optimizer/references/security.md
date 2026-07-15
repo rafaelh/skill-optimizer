@@ -1,6 +1,6 @@
 # Skill security (OWASP Agentic Skills Top 10)
 
-A skill is executable trust: its SKILL.md becomes agent instructions and its bundled scripts run with the agent's privileges. A skill that leaks a secret, ships malicious instructions, or pulls a compromised dependency is a supply-chain risk for everyone who installs it. This guide maps the [OWASP Agentic Skills Top 10](https://owasp.org/www-project-agentic-skills-top-10/) and its [skill development guide](https://owasp.org/www-project-agentic-skills-top-10/skill-development-guide) onto concrete checks for a Claude skill.
+A skill is executable trust: its SKILL.md becomes agent instructions and its bundled scripts run with the agent's privileges. A skill that leaks a secret, ships malicious instructions, or pulls a compromised dependency is a supply-chain risk for everyone who installs it. This guide maps the [OWASP Agentic Skills Top 10](https://owasp.org/www-project-agentic-skills-top-10/) and its [skill development guide](https://owasp.org/www-project-agentic-skills-top-10/skill-development-guide) onto concrete checks for an agent skill, regardless of the target platform (Claude Code, Copilot, Codex, VS Code).
 
 ## When to read this
 

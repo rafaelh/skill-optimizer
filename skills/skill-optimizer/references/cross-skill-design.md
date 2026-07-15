@@ -6,7 +6,7 @@ When more than one skill is loaded, descriptions compete. An overlap between two
 
 Read this guide when:
 
-- The user has multiple skills under `~/.claude/skills/` (or a project's `.claude/skills/`).
+- The user has multiple skills in their skills directory (e.g. `~/.claude/skills/`, `<repo>/.github/prompts/`, or a project's `.claude/skills/`).
 - `detect_skill_overlap.py` has flagged a collision.
 - Two skills cover related domains (e.g. "csv-analysis" + "excel-formulas") and you can predict near-miss confusion.
 - A new skill is being scaffolded and you want to verify it doesn't collide with existing ones.
@@ -55,10 +55,10 @@ The explicit "NOT for X — see Y" pointer is the disambiguation. It costs ~50 c
 
 ```bash
 # Mode 1: single skill against siblings
-python3 detect_skill_overlap.py ~/.claude/skills/my-skill --against ~/.claude/skills
+python3 detect_skill_overlap.py <skills-dir>/my-skill --against <skills-dir>
 
 # Mode 2: all-pairs scan of a parent directory
-python3 detect_skill_overlap.py ~/.claude/skills
+python3 detect_skill_overlap.py <skills-dir>
 ```
 
 The default similarity is bag-of-words cosine over description tokens (lowercased, stopwords dropped). Threshold defaults to 0.5; tune with `--threshold`.

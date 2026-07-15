@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scaffold a new Claude skill from the bundled templates.
+"""Scaffold a new agent skill from the bundled templates.
 
 Creates a directory layout that already passes validate_skill.py and
 analyze_skill.py: a frontmatter-complete SKILL.md, an example script with
@@ -213,7 +213,7 @@ def _emit_json(skill_dir: Path, created: list[CreatedFile]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Scaffold a new Claude skill from the bundled templates.",
+        description="Scaffold a new agent skill from the bundled templates.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("parent_dir", help="Parent directory under which <name>/ will be created")

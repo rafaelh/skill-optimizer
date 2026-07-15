@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Detect description overlap between Claude skills.
+"""Detect description overlap between agent skills.
 
 Two modes, picked from the input shape:
 
@@ -152,11 +152,11 @@ def tokenize(description: str) -> tuple[str, ...]:
 def cosine(a: tuple[str, ...], b: tuple[str, ...]) -> float:
     if not a or not b:
         return 0.0
-    ca, cb = Counter(a), Counter(b)
-    shared = set(ca) & set(cb)
-    dot = sum(ca[k] * cb[k] for k in shared)
-    norm_a = math.sqrt(sum(v * v for v in ca.values()))
-    norm_b = math.sqrt(sum(v * v for v in cb.values()))
+    counts_a, counts_b = Counter(a), Counter(b)
+    shared = set(counts_a) & set(counts_b)
+    dot = sum(counts_a[k] * counts_b[k] for k in shared)
+    norm_a = math.sqrt(sum(v * v for v in counts_a.values()))
+    norm_b = math.sqrt(sum(v * v for v in counts_b.values()))
     return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
 
 
@@ -165,11 +165,11 @@ def shared_keywords(
     b: tuple[str, ...],
     top: int = TOP_SHARED_KEYWORDS,
 ) -> list[str]:
-    ca, cb = Counter(a), Counter(b)
-    shared = set(ca) & set(cb)
+    counts_a, counts_b = Counter(a), Counter(b)
+    shared = set(counts_a) & set(counts_b)
     # Rank by combined frequency: keywords used heavily in both descriptions
     # are the most useful signal for what the agent will see as a collision.
-    ranked = sorted(shared, key=lambda k: ca[k] + cb[k], reverse=True)
+    ranked = sorted(shared, key=lambda k: counts_a[k] + counts_b[k], reverse=True)
     return ranked[:top]
 
 
@@ -178,11 +178,11 @@ def load_skill(skill_dir: Path) -> SkillEntry | None:
     if not skill_md.is_file():
         return None
     text = skill_md.read_text(encoding="utf-8")
-    fm, _body = parse_frontmatter(text)
-    if not isinstance(fm, dict):
+    frontmatter, _body = parse_frontmatter(text)
+    if not isinstance(frontmatter, dict):
         return None
-    name = fm.get("name") or skill_dir.name
-    description = fm.get("description") or ""
+    name = frontmatter.get("name") or skill_dir.name
+    description = frontmatter.get("description") or ""
     if not isinstance(name, str) or not isinstance(description, str):
         return None
     return SkillEntry(
@@ -195,9 +195,9 @@ def load_skill(skill_dir: Path) -> SkillEntry | None:
 
 def discover_skills(parent: Path) -> list[SkillEntry]:
     """Return all loadable skills directly under `parent`."""
-    skills: list[SkillEntry] = []
     if not parent.is_dir():
-        return skills
+        return []
+    skills: list[SkillEntry] = []
     for child in sorted(parent.iterdir()):
         if not child.is_dir():
             continue
@@ -269,11 +269,10 @@ def _emit_text(skills: list[SkillEntry], overlaps: list[OverlapPair]) -> None:
     if not overlaps:
         print(f"no overlapping pairs found across {len(skills)} skill(s)")
         return
-    for o in overlaps:
-        keywords = ", ".join(sanitize_for_echo(k, max_len=32) for k in o.shared_keywords)
-        print(
-            f"WARN: [{o.code}] {o.a} <-> {o.b}  similarity={o.similarity:.2f}  shared=[{keywords}]"
-        )
+    for pair in overlaps:
+        keywords = ", ".join(sanitize_for_echo(k, max_len=32) for k in pair.shared_keywords)
+        sim = f"{pair.similarity:.2f}"
+        print(f"WARN: [{pair.code}] {pair.a} <-> {pair.b}  similarity={sim}  shared=[{keywords}]")
 
 
 def _emit_json(skills: list[SkillEntry], overlaps: list[OverlapPair]) -> None:
@@ -290,7 +289,7 @@ def _emit_json(skills: list[SkillEntry], overlaps: list[OverlapPair]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Detect description overlap between Claude skills.",
+        description="Detect description overlap between agent skills.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
