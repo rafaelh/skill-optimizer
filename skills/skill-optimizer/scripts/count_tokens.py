@@ -99,12 +99,12 @@ def _read_input(target: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _emit_text(result: dict[str, Any]) -> None:
+def _emit_text(result: dict[str, Any], *, quiet: bool = False) -> None:
     method = result["method"]
     exact = "exact" if result["exact"] else "estimate"
     suffix = f" (model={result['model']})" if "model" in result else ""
     print(f"{result['tokens']} tokens — {method} ({exact}){suffix}")
-    if "fallback_reason" in result:
+    if "fallback_reason" in result and not quiet:
         print(f"  fallback: {result['fallback_reason']}", file=sys.stderr)
 
 
@@ -124,13 +124,16 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_MODEL,
         help=f"Anthropic model id for the SDK call (default: {DEFAULT_MODEL}).",
     )
+    parser.add_argument("--format", choices=["json", "text"], default="text", help="Output format.")
     parser.add_argument(
         "--json",
         dest="as_json",
         action="store_true",
-        help="Emit machine-readable JSON on stdout.",
+        help="Alias for --format json.",
     )
+    parser.add_argument("--quiet", action="store_true", help="Suppress informational stderr.")
     args = parser.parse_args(argv)
+    use_json = args.as_json or args.format == "json"
 
     try:
         text = _read_input(args.target)
@@ -140,10 +143,10 @@ def main(argv: list[str] | None = None) -> int:
 
     result = count(text, model=args.model)
 
-    if args.as_json:
+    if use_json:
         _emit_json(args.target, result)
     else:
-        _emit_text(result)
+        _emit_text(result, quiet=args.quiet)
     return 0
 
 

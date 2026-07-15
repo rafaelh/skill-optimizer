@@ -75,15 +75,19 @@ Validate, analyze, optimize, and security-audit an existing skill.
 
 ### Workflow
 
-1. **Run static validators.** All accept `--json` and exit non-zero on FAIL.
+1. **Run static validators.** Delegate to a subagent to keep raw output out of the main context.
 
-```bash
-python3 "${SKILL_DIR}/scripts/validate_skill.py" <skill-dir>
-python3 "${SKILL_DIR}/scripts/analyze_skill.py" <skill-dir>
-python3 "${SKILL_DIR}/scripts/count_tokens.py" <skill-dir>/SKILL.md
-```
+> **Subagent prompt:** Run the following three commands against `<skill-dir>` and return a single summary listing only FAIL and WARN items with their codes, messages, and affected files. Omit PASS items. Include the token count at the end.
+>
+> ```bash
+> python3 "${SKILL_DIR}/scripts/validate_skill.py" <skill-dir> --json
+> python3 "${SKILL_DIR}/scripts/analyze_skill.py" <skill-dir> --json
+> python3 "${SKILL_DIR}/scripts/count_tokens.py" <skill-dir>/SKILL.md --json
+> ```
+>
+> `${SKILL_DIR}` resolves to the directory containing this SKILL.md (`${CLAUDE_SKILL_DIR}` on Claude Code). If all pass with no warnings, return "All validators pass. Token count: N".
 
-`${SKILL_DIR}` resolves to the directory containing this SKILL.md (`${CLAUDE_SKILL_DIR}` on Claude Code).
+Interpreting codes (if reviewing results yourself):
 
 - `validate_skill.py` — spec enforcement: required fields, name regex, description length (1–1024), directory match, broken file references. Codes: `validate.<surface>.<concern>`.
 - `analyze_skill.py` — content anti-patterns: declarative openings, missing trigger contexts, body over 500 lines / 5000 tokens, generic filler, unguarded references. Codes: `analyze.<surface>.<concern>`.
@@ -107,35 +111,38 @@ Pass `--exit-on-warn` to treat warnings as failures (CI / pre-commit).
 - Bundle scripts for repeated logic
 - Apply progressive disclosure (detail into `references/`, `scripts/`, `assets/`)
 
-4. **Audit bundled scripts.**
+4. **Audit bundled scripts.** Delegate to a subagent — this step iterates over every script and produces verbose per-file output.
 
-**4a. SKILL.md-level — what should become a script:**
+> **Subagent prompt:** Audit all bundled scripts in `<skill-dir>`. Run these three steps and return only material findings (FAIL or WARN) with the affected file, line number, and code. Omit clean passes.
+>
+> **4a. What should become a script:**
+> ```bash
+> python3 "${SKILL_DIR}/scripts/recommend_scripts.py" <skill-dir> --json
+> ```
+>
+> **4b. Per-script contract compliance:**
+> ```bash
+> for s in <skill-dir>/scripts/*.py; do
+>   python3 "${SKILL_DIR}/../agent-tool-builder/scripts/validate_agent_tool.py" "$s" --json
+> done
+> ```
+>
+> **4c. Implementation quality:**
+> ```bash
+> python3 "${SKILL_DIR}/../agent-tool-builder/scripts/perf_check.py" <skill-dir>/scripts/ --json
+> ```
+>
+> If a finding references a perf pattern, read [agent-tool-builder/references/perf-findings.md](../agent-tool-builder/references/perf-findings.md) and include the recommended fix in your summary. Return results grouped by file.
 
-```bash
-python3 "${SKILL_DIR}/scripts/recommend_scripts.py" <skill-dir>
-```
+5. **Security audit (OWASP Agentic Skills Top 10).** Delegate to a subagent when combined with steps 1 and 4.
 
-**4b. Per-script contract compliance** (delegated to [agent-tool-builder](../agent-tool-builder/SKILL.md)):
-
-```bash
-for s in <skill-dir>/scripts/*.py; do
-  python3 "${SKILL_DIR}/../agent-tool-builder/scripts/validate_agent_tool.py" "$s" --json
-done
-```
-
-**4c. Implementation quality:**
-
-```bash
-python3 "${SKILL_DIR}/../agent-tool-builder/scripts/perf_check.py" <skill-dir>/scripts/ --json
-```
-
-See [agent-tool-builder/references/perf-findings.md](../agent-tool-builder/references/perf-findings.md) for interpreting findings.
-
-5. **Security audit (OWASP Agentic Skills Top 10).**
-
-```bash
-python3 "${SKILL_DIR}/scripts/audit_security.py" <skill-dir>
-```
+> **Subagent prompt:** Run the security scanner on `<skill-dir>` and return all FAIL and WARN findings with their AST codes, affected locations, and recommended fixes. If any findings are flagged, read [references/security.md](references/security.md) and include the relevant rationale from the pre-publication checklist.
+>
+> ```bash
+> python3 "${SKILL_DIR}/scripts/audit_security.py" <skill-dir> --json
+> ```
+>
+> If clean, return "Security audit: no findings."
 
 Findings carry an `AST##` id. Codes: `security.<surface>.<concern>`. Key checks:
 
@@ -148,7 +155,9 @@ Findings carry an `AST##` id. Codes: `security.<surface>.<concern>`. Key checks:
 
 Read [references/security.md](references/security.md) for rationale behind each code and the pre-publication checklist.
 
-6. **Re-validate.** Run all validators again. Iterate until: `validate_skill.py` passes, `analyze_skill.py` warnings are addressed or consciously accepted, `audit_security.py` shows no FAIL findings, and script audits report nothing material.
+6. **Re-validate.** Delegate to the same subagent pattern as step 1. Iterate until: `validate_skill.py` passes, `analyze_skill.py` warnings are addressed or consciously accepted, `audit_security.py` shows no FAIL findings, and script audits report nothing material.
+
+> **Combined audit subagent:** Steps 1, 4, 5, and 6 can be merged into a single subagent invocation when running a full audit. Prompt the subagent to run all validators, script audits, and security checks, then return one unified findings report grouped by severity (FAIL → WARN → INFO).
 
 ### Gotchas (Audit)
 
@@ -164,18 +173,21 @@ Run trigger-rate evaluations, optimize a description for activation, and detect/
 
 ### Workflow
 
-1. **Check for overlap first.** When the skill lives alongside others:
+1. **Check for overlap first.** Delegate to a subagent — overlap detection produces O(n²) pair output for large skill directories.
 
-```bash
-python3 "${SKILL_DIR}/scripts/detect_skill_overlap.py" ~/.claude/skills/ --json
-```
-
-Or for a single skill against siblings:
-
-```bash
-python3 "${SKILL_DIR}/scripts/detect_skill_overlap.py" <skill-dir> \
-  --against ~/.claude/skills/
-```
+> **Subagent prompt:** Run overlap detection on the skill directory and return only pairs above the threshold. For each flagged pair, include the `shared_keywords` list and cosine score. If any pair scores ≥ 0.5, read [references/cross-skill-design.md](references/cross-skill-design.md) and include the recommended disambiguation strategy for that pair.
+>
+> ```bash
+> python3 "${SKILL_DIR}/scripts/detect_skill_overlap.py" ~/.claude/skills/ --json
+> ```
+>
+> Or for a single skill against siblings:
+> ```bash
+> python3 "${SKILL_DIR}/scripts/detect_skill_overlap.py" <skill-dir> \
+>   --against ~/.claude/skills/ --json
+> ```
+>
+> If no pairs exceed the threshold, return "No overlap detected."
 
 Read [references/cross-skill-design.md](references/cross-skill-design.md) when the script flags a pair above the threshold or the wrong skill activated for a request.
 
@@ -233,6 +245,8 @@ Read [references/evaluation.md](references/evaluation.md) when:
 ## Platform notes
 
 Scripts work on macOS, Linux, and Windows (Python 3.14+). On Windows: use `python` or `py -3`; `~` is expanded via `Path.expanduser()`; all file I/O is explicit UTF-8; symlink tests are auto-skipped without privileges.
+
+All CLI scripts accept `--format json|text` (default `text`) and `--json` as a shorthand alias. Pass `--quiet` to suppress informational stderr (errors still print). Library modules (e.g. `skill_lib.py`) are marked `# agent-tool: false` and skipped by `validate_agent_tool.py`.
 
 For PEP 723 scripts, `uv run scripts/<name>.py` resolves dependencies automatically.
 

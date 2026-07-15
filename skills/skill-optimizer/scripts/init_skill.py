@@ -233,13 +233,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Allow writing into an existing destination directory.",
     )
+    parser.add_argument("--format", choices=["json", "text"], default="text", help="Output format.")
     parser.add_argument(
         "--json",
         dest="as_json",
         action="store_true",
-        help="Emit machine-readable JSON on stdout.",
+        help="Alias for --format json.",
     )
+    parser.add_argument("--quiet", action="store_true", help="Suppress informational stderr.")
     args = parser.parse_args(argv)
+    use_json = args.as_json or args.format == "json"
 
     parent = Path(args.parent_dir).expanduser().resolve()
     if not parent.exists():
@@ -264,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"init_skill: {exc}", file=sys.stderr)
         return 1
 
-    if args.as_json:
+    if use_json:
         _emit_json(skill_dir, created)
     else:
         _emit_text(skill_dir, created)

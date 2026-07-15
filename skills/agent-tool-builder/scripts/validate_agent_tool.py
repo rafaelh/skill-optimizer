@@ -457,6 +457,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return EXIT_BAD_INVOCATION
 
+    # Skip library modules that opt out of agent-tool validation.
+    src = _src(path)
+    head = "\n".join(src.splitlines()[:10])
+    if "# agent-tool: false" in head:
+        use_json = args.as_json or args.format == "json"
+        if use_json:
+            print(json.dumps({"target": str(path), "skipped": True}, indent=2))
+        elif not args.quiet:
+            print(f"SKIP: {path} (marked # agent-tool: false)")
+        return EXIT_OK
+
     findings = validate(path)
 
     use_json = args.as_json or args.format == "json"

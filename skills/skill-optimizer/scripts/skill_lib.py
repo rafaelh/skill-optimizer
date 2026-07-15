@@ -3,6 +3,7 @@
 Imported by validate_skill.py, analyze_skill.py, and recommend_scripts.py.
 Stdlib only.
 """
+# agent-tool: false
 
 from __future__ import annotations
 

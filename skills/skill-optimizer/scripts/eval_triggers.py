@@ -282,13 +282,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Validate inputs and assignments, but skip the actual CLI calls.",
     )
+    parser.add_argument("--format", choices=["json", "text"], default="text", help="Output format.")
     parser.add_argument(
         "--json",
         dest="as_json",
         action="store_true",
-        help="Emit machine-readable JSON on stdout.",
+        help="Alias for --format json.",
     )
+    parser.add_argument("--quiet", action="store_true", help="Suppress informational stderr.")
     args = parser.parse_args(argv)
+    use_json = args.as_json or args.format == "json"
 
     queries_path = Path(args.queries).expanduser().resolve()
     if not queries_path.is_file():
@@ -318,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
     )
 
-    if args.as_json:
+    if use_json:
         _emit_json(summary)
     else:
         _emit_text(summary)

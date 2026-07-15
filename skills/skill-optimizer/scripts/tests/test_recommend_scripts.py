@@ -128,3 +128,13 @@ class TestCli:
         assert "summary" in data
         for o in data["opportunities"]:
             assert {"kind", "where", "title", "why", "suggestion", "severity"} <= set(o.keys())
+
+    def test_format_json_flag(self, skill: SkillFactory) -> None:
+        result = self._run(str(skill()), "--format", "json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "opportunities" in data
+
+    def test_quiet_flag_accepted(self, skill: SkillFactory) -> None:
+        result = self._run(str(skill()), "--quiet")
+        assert result.returncode == 0

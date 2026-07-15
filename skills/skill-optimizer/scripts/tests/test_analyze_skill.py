@@ -148,3 +148,14 @@ class TestCli:
         assert ok_default.returncode == 0
         warn_strict = self._run(str(d), "--exit-on-warn")
         assert warn_strict.returncode == 1
+
+    def test_format_json_flag(self, skill: SkillFactory) -> None:
+        result = self._run(str(skill()), "--format", "json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "issues" in data
+        assert "stats" in data
+
+    def test_quiet_flag_accepted(self, skill: SkillFactory) -> None:
+        result = self._run(str(skill()), "--quiet", "--format", "json")
+        assert result.returncode == 0

@@ -354,8 +354,13 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Write the winning description to SKILL.md (creates .bak)",
     )
-    parser.add_argument("--json", dest="as_json", action="store_true")
+    parser.add_argument("--format", choices=["json", "text"], default="text", help="Output format.")
+    parser.add_argument(
+        "--json", dest="as_json", action="store_true", help="Alias for --format json."
+    )
+    parser.add_argument("--quiet", action="store_true", help="Suppress informational stderr.")
     args = parser.parse_args(argv)
+    use_json = args.as_json or args.format == "json"
 
     skill_dir = Path(args.skill_dir).expanduser().resolve()
     if not skill_dir.is_dir():
@@ -387,7 +392,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"optimize_description: {exc}", file=sys.stderr)
         return 2
 
-    if args.as_json:
+    if use_json:
         _emit_json(result)
     else:
         _emit_text(result)

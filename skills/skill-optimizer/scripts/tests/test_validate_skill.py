@@ -200,3 +200,17 @@ class TestCli:
         not_dir.write_text("hi")
         result = self._run(str(not_dir))
         assert result.returncode == 2
+
+    def test_format_json_flag(self, skill: SkillFactory) -> None:
+        result = self._run(str(skill()), "--format", "json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["summary"]["ok"] is True
+
+    def test_quiet_suppresses_stderr(self, tmp_path: Path) -> None:
+        not_dir = tmp_path / "file.md"
+        not_dir.write_text("hi")
+        result = self._run(str(not_dir), "--quiet")
+        assert result.returncode == 2
+        # Errors still appear on stderr even with --quiet
+        assert result.stderr != ""

@@ -277,13 +277,18 @@ def main(argv: list[str] | None = None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("skill_dir", help="Path to the skill directory")
-    parser.add_argument("--json", dest="as_json", action="store_true", help="Emit JSON on stdout.")
+    parser.add_argument("--format", choices=["json", "text"], default="text", help="Output format.")
+    parser.add_argument(
+        "--json", dest="as_json", action="store_true", help="Alias for --format json."
+    )
+    parser.add_argument("--quiet", action="store_true", help="Suppress informational stderr.")
     parser.add_argument(
         "--exit-on-warn",
         action="store_true",
         help="Return non-zero exit if any WARN-level issues are found.",
     )
     args = parser.parse_args(argv)
+    use_json = args.as_json or args.format == "json"
 
     skill_dir = Path(args.skill_dir).expanduser().resolve()
     if not skill_dir.exists():
@@ -295,7 +300,7 @@ def main(argv: list[str] | None = None) -> int:
 
     issues = validate(skill_dir)
     summary = _summary(issues)
-    if args.as_json:
+    if use_json:
         _emit_json(skill_dir, issues, summary)
     else:
         _emit_text(issues, summary)

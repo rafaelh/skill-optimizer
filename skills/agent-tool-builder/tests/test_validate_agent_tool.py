@@ -240,3 +240,21 @@ def test_text_output_is_default(tmp_path: Path) -> None:
     r = _run(str(fixture))
     assert r.returncode == 0
     assert not r.stdout.lstrip().startswith("{"), "default format should be text, not JSON"
+
+
+def test_agent_tool_false_marker_skips(tmp_path: Path) -> None:
+    fixture = _write(
+        tmp_path,
+        "lib.py",
+        """\
+        \"\"\"Shared library module.\"\"\"
+        # agent-tool: false
+
+        def helper():
+            return 42
+        """,
+    )
+    r = _run(str(fixture), "--format", "json")
+    assert r.returncode == 0
+    data = json.loads(r.stdout)
+    assert data["skipped"] is True
