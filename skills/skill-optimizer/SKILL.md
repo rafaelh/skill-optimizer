@@ -1,91 +1,28 @@
 ---
 name: skill-optimizer
-description: "For skills whose bundled scripts are Python: audit, optimize, validate, scaffold, and trigger-eval Agent Skills (SKILL.md files) for any agent compliant with the agentskills.io spec — Claude Code, GitHub Copilot, Codex, VS Code, and others. USE FOR: saving coding preferences; troubleshooting why instructions/skills/agents are ignored or not invoked; configuring applyTo patterns; defining tool restrictions; creating custom agent modes or specialized workflows; packaging domain knowledge; fixing YAML frontmatter syntax. Also trigger when the user doesn't say \"skill\" — e.g., \"this prompt file isn't activating\", \"rewrite my SKILL.md\", \"why doesn't my agent pick up my custom command\", \"scaffold a new skill\", \"audit my skills directory\", or \"test whether my description triggers reliably\". NOT for skills whose bundled scripts are TypeScript — use skill-optimizer-ts for that."
+description: "For skills whose bundled scripts are Python: audit, optimize, validate, and trigger-eval Agent Skills (SKILL.md files) for any agent compliant with the agentskills.io spec — Claude Code, GitHub Copilot, Codex, VS Code, and others. USE FOR: saving coding preferences; troubleshooting why instructions/skills/agents are ignored or not invoked; configuring applyTo patterns; defining tool restrictions; creating custom agent modes or specialized workflows; packaging domain knowledge; fixing YAML frontmatter syntax. Also trigger when the user doesn't say \"skill\" — e.g., \"this prompt file isn't activating\", \"rewrite my SKILL.md\", \"why doesn't my agent pick up my custom command\", \"audit my skills directory\", or \"test whether my description triggers reliably\". NOT for skills whose bundled scripts are TypeScript — use skill-optimizer-ts for that."
 compatibility: Works with any agent platform supporting the agentskills.io specification (Claude Code, GitHub Copilot, Codex, VS Code). Requires Python 3.14+ (stdlib only on most paths). eval_triggers.py and optimize_description.py require an agent CLI on PATH (claude, copilot, or codex — configurable via --cli-bin). count_tokens.py uses the anthropic SDK if ANTHROPIC_API_KEY is set, else falls back to a heuristic. Scripts using PEP 723 metadata run cleanest under `uv run`.
 metadata:
-  version: "3.0"
+  version: "4.0"
   author: Rafe Hart
 ---
 
 # Skill Optimizer
 
-This skill operates in three modes. Identify which mode applies, then follow that mode's workflow exclusively.
+This skill operates in two modes. Identify which mode applies, then follow that mode's workflow exclusively.
 
 ## Mode selection
 
-| Mode       | Use when the user wants to…             |
-|------------|-----------------------------------------|
-| **Create** | Scaffold a new skill from scratch       |
-| **Audit**  | Improve, validate, restructure, or security-audit an existing skill |
-| **Eval**   | Run trigger evals, optimize a description for activation rate, or resolve overlap between sibling skills |
+| Mode      | Use when the user wants to…             |
+|-----------|-----------------------------------------|
+| **Audit** | Improve, validate, restructure, or security-audit an existing skill |
+| **Eval**  | Run trigger evals, optimize a description for activation rate, or resolve overlap between sibling skills |
 
-If the request spans multiple modes (e.g. "create a skill and make sure it doesn't overlap my others"), execute them in order: Create → Audit → Eval.
-
----
-
-## Mode 1 — Create
-
-Scaffold a new skill so it passes validators out of the box.
-
-### Workflow
-
-1. **Understand the skill with concrete examples.** Before scaffolding, establish what the skill does through concrete usage scenarios. Ask:
-
-- "What would a user say that should trigger this skill?"
-- "Can you give examples of how this skill would be used?"
-- "What does the skill do that the agent can't already do alone?"
-
-Conclude when you have 3–5 representative tasks the skill must handle. These become the basis for the description's trigger contexts and later eval queries.
-
-2. **Plan reusable resources.** For each example, identify what should become bundled resources:
-
-- **Script** — code the agent would rewrite each run (e.g., PDF rotation, form filling, data transformation)
-- **Reference** — documentation the agent needs to make informed decisions (e.g., schemas, API docs, domain rules)
-- **Asset** — files used in output, not loaded into context (e.g., templates, boilerplate, images)
-
-Do NOT create resources speculatively. Each must trace back to a concrete example from step 1. Do NOT include README, CHANGELOG, INSTALLATION_GUIDE, or other auxiliary documentation — skills contain only what the agent needs to do the job.
-
-3. **Run the scaffolder.**
-
-```bash
-python3 "${SKILL_DIR}/scripts/init_skill.py" \
-  <parent-dir> --name <slug> --description "<text>" --json
-```
-
-This produces: SKILL.md from `assets/templates/SKILL.md.template`, an `example.py` from `assets/templates/script.py.template`, and `references/` + `assets/` + `tests/` placeholders. Pass `--minimal` for SKILL.md only.
-
-Skills live in platform-specific locations:
-
-- **Claude Code**: `~/.claude/skills/<name>/` (user) or `<repo>/.claude/skills/<name>/` (project)
-- **GitHub Copilot / VS Code**: `~/.config/Code/User/prompts/<name>/` or `<repo>/.github/prompts/<name>/`
-- **Codex**: `<repo>/.codex/skills/<name>/`
-
-4. **Write the description.** Read [references/description-guide.md](references/description-guide.md) for the full writing rules. Quick rules:
-
-- **Imperative**: "Use this skill when..." not "This skill does..."
-- **Intent-focused**: describe what the user is trying to achieve, not internals
-- **Pushy**: list trigger contexts including ones where the user doesn't name the domain
-- **Hard limit**: 1024 characters
-
-5. **Write the body.** Read [references/content-patterns.md](references/content-patterns.md) before structuring. Key principles:
-
-- Cut what the agent already knows
-- Convert declarations into procedures
-- Add a Gotchas section for non-obvious environment facts
-- Provide defaults, not menus
-- Bundle scripts for any logic the agent would otherwise reinvent each run
-- Keep SKILL.md under 500 lines / ~5000 tokens; move detail into `references/`
-
-6. **Validate immediately.** Run the static validators (see Mode 2, step 1) to confirm the new skill passes before moving on.
-
-### Gotchas (Create)
-
-- The `name` field MUST equal the parent directory name. Renaming a skill means renaming both the directory and the frontmatter in lockstep.
-- `init_skill.py` won't overwrite an existing directory — delete or rename first.
+If the request spans multiple modes (e.g. "audit this skill and make sure it doesn't overlap my others"), execute them in order: Audit → Eval.
 
 ---
 
-## Mode 2 — Audit
+## Mode 1 — Audit
 
 Validate, analyze, optimize, and security-audit an existing skill.
 
@@ -192,7 +129,7 @@ Decision rule: err on the side of forward-testing. Skip only when the skill is t
 
 ---
 
-## Mode 3 — Eval
+## Mode 2 — Eval
 
 Run trigger-rate evaluations, optimize a description for activation, and detect/resolve overlap between sibling skills.
 

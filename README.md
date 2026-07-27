@@ -9,13 +9,13 @@
 
 A Claude Code plugin marketplace with three skills for building and maintaining high-quality AI agent tooling. Uses the [agentskills.io](https://agentskills.io/) specification.
 
-> **Python-first, with a TypeScript option:** `skill-optimizer` and `agent-tool-builder` assume bundled scripts are written in Python (PEP 723 inline metadata, `argparse`, `--json` output). If your team doesn't have Python available (common on Windows without a separate install), use **`skill-optimizer-ts`** instead — the same audit/eval workflow, but targeting TypeScript scripts run via `npx tsx`. Its script-level checks (interface contract, performance anti-patterns, security) are folded in and target JS/TS constructs, not Python's. (It doesn't scaffold new skills — use `skill-optimizer` for that even on a TypeScript-skill project.)
+> **Python-first, with a TypeScript option:** `skill-optimizer` and `agent-tool-builder` assume bundled scripts are written in Python (PEP 723 inline metadata, `argparse`, `--json` output). If your team doesn't have Python available (common on Windows without a separate install), use **`skill-optimizer-ts`** instead — the same audit/eval workflow, but targeting TypeScript scripts run via `npx tsx`. Its script-level checks (interface contract, performance anti-patterns, security) are folded in and target JS/TS constructs, not Python's.
 
 ## Skills
 
 ### skill-optimizer
 
-Audits, optimizes, validates, scaffolds, and trigger-evals Claude Agent Skills (SKILL.md files).
+Audits, optimizes, validates, and trigger-evals Claude Agent Skills (SKILL.md files).
 
 **Validation and analysis**
 
@@ -29,11 +29,6 @@ Audits, optimizes, validates, scaffolds, and trigger-evals Claude Agent Skills (
 - Rewrites the `description` field with imperative phrasing and concrete trigger contexts
 - Runs a trigger-rate eval: invokes `claude -p` against a labeled query set and counts how often the skill activates
 - Iterates candidate descriptions against train failures, scores against a held-out validation set, and proposes the winner
-
-**Scaffolding**
-
-- Scaffolds new skills from templates: SKILL.md, `scripts/example.py` (PEP 723, argparse, `--json`), `references/`, `assets/`, and `tests/`
-- Generated scripts follow Python best practices: stdlib-only by default, PEP 723 inline metadata for third-party deps, `argparse` for flags, structured JSON output
 
 **Script quality** *(Python only)*
 
@@ -56,7 +51,6 @@ Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machin
 | `detect_skill_overlap.py` | Cosine similarity between skill descriptions; single-skill or all-pairs mode |
 | `eval_triggers.py` | Trigger-rate eval against a labeled query set; train/validation split |
 | `optimize_description.py` | Multi-round description optimizer; propose-only by default, `--apply` to write |
-| `init_skill.py` | Scaffold a new skill directory from bundled templates |
 | `count_tokens.py` | Token counter; exact via Anthropic SDK, heuristic fallback |
 | `perf_check.py` | AST-based performance checker + optional cProfile profiling |
 | `audit_security.py` | OWASP Agentic Skills Top 10 audit; FAILs on hardcoded secrets, WARNs on the rest |
@@ -65,9 +59,9 @@ Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machin
 
 ### skill-optimizer-ts
 
-The TypeScript twin of `skill-optimizer` — same audit/eval workflow, for skills whose bundled scripts are TypeScript (run via `npx tsx`) instead of Python. For teams without Python available, most commonly Windows machines. Unlike `skill-optimizer`, it doesn't scaffold new skills — it only audits, optimizes, and evals existing ones.
+The TypeScript twin of `skill-optimizer` — same audit/eval workflow, for skills whose bundled scripts are TypeScript (run via `npx tsx`) instead of Python. For teams without Python available, most commonly Windows machines.
 
-**Validation, analysis, and description optimization** — same feature set as `skill-optimizer` above (minus scaffolding), retargeted at TypeScript.
+**Validation, analysis, and description optimization** — same feature set as `skill-optimizer` above, retargeted at TypeScript.
 
 **Script quality** *(TypeScript only)* — `validate_agent_tool.ts` and `perf_check.ts` are folded directly into this skill (no dependency on `agent-tool-builder`, which is Python-only). Performance checks target JS/TS anti-patterns: string `+=` in a loop, `new RegExp(literal)` recompiled per iteration, array `.includes()`/`.indexOf()` membership tests, `readFileSync` in a loop, `.sort()`/`.reverse()` in a loop.
 
@@ -133,7 +127,7 @@ This repo is a Claude Code plugin marketplace. From inside Claude Code, add the 
 /reload-plugins
 ```
 
-Once installed, skills activate automatically based on context — `skill-optimizer` or `skill-optimizer-ts` when you ask Claude to audit a SKILL.md (pick based on whether your bundled scripts are Python or TypeScript; only `skill-optimizer` also scaffolds new skills); `agent-tool-builder` when you ask Claude to write or improve a Python script an agent will call. `skill-optimizer` and `skill-optimizer-ts` cover overlapping ground by design — their descriptions each carry an explicit "NOT for X — see Y" disambiguator so only one activates per request.
+Once installed, skills activate automatically based on context — `skill-optimizer` or `skill-optimizer-ts` when you ask Claude to audit a SKILL.md (pick based on whether your bundled scripts are Python or TypeScript); `agent-tool-builder` when you ask Claude to write or improve a Python script an agent will call. `skill-optimizer` and `skill-optimizer-ts` cover overlapping ground by design — their descriptions each carry an explicit "NOT for X — see Y" disambiguator so only one activates per request.
 
 After installing `skill-optimizer-ts`, run `npm ci` once inside `skills/skill-optimizer-ts/` to resolve `tsx`/`typescript`/`vitest` from the committed lockfile.
 
