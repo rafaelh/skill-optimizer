@@ -12,6 +12,12 @@
       "category": "development"
     },
     {
+      "name": "skill-optimizer-ts",
+      "description": "Audit, optimize, validate, scaffold, and trigger-eval Claude Agent Skills (SKILL.md files) whose bundled scripts are TypeScript",
+      "source": "./skills/skill-optimizer-ts",
+      "category": "development"
+    },
+    {
       "name": "agent-tool-builder",
       "description": "Build and review Python scripts intended to be called by AI agents as tools",
       "source": "./skills/agent-tool-builder",

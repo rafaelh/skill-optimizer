@@ -1,0 +1,8 @@
+# SKILL.md's YAML frontmatter must stay in the exact quoting style our own
+# minimal frontmatter parser (skill_lib.ts) expects. Prettier's markdown
+# formatter reformats double-quoted YAML scalars into single-quoted ones,
+# doubling embedded apostrophes ('' instead of ') per YAML's single-quote
+# escape rule — a rule our parser (like the Python original it mirrors)
+# doesn't implement, since it only strips matching outer quotes.
+SKILL.md
+assets/templates/SKILL.md.template

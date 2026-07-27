@@ -1,0 +1,31 @@
+{
+  "name": "skill-optimizer-ts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TypeScript scripts for the skill-optimizer-ts Claude Code skill",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "tsx": "4.23.1",
+    "typescript": "5.9.3"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "0.32.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "22.20.1",
+    "eslint": "9.39.5",
+    "prettier": "3.9.6",
+    "typescript-eslint": "8.65.0",
+    "vitest": "2.1.9"
+  }
+}
