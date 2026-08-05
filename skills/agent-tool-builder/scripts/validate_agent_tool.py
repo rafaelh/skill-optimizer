@@ -204,11 +204,12 @@ def check_stderr_for_errors(src: str) -> list[Finding]:
 _STDLIB_MODULES = set(sys.stdlib_module_names) | {"__future__"}
 
 _PEP723_BLOCK_RE = re.compile(r"^# /// script\s*\n(.*?)^# ///\s*$", re.MULTILINE | re.DOTALL)
+_IMPORT_RE = re.compile(r"^import (\w+)|^from (\w+)", re.MULTILINE)
 
 
 def check_pep723(src: str) -> list[Finding]:
     non_stdlib_modules: set[str] = set()
-    for match in re.findall(r"^import (\w+)|^from (\w+)", src, re.MULTILINE):
+    for match in _IMPORT_RE.findall(src):
         mod = match[0] or match[1]
         if mod and mod not in _STDLIB_MODULES:
             non_stdlib_modules.add(mod)
