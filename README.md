@@ -1,47 +1,51 @@
 ```
-  ___________   .__.__  .__    ________          __  .__        .__
- /   _____/  | _|__|  | |  |   \_____  \ _______/  |_|__| _____ |__|_______ ___________
- \_____  \|  |/ /  |  | |  |    /   |   \\____ \   __\  |/     \|  \___   // __ \_  __ \
- /        \    <|  |  |_|  |__ /    |    \  |_> >  | |  |  Y Y  \  |/    /\  ___/|  | \/
-/_______  /__|_ \__|____/____/ \_______  /   __/|__| |__|__|_|  /__/_____ \\___  >__|
-        \/     \/                      \/|__|                 \/         \/    \/
+      __       _______    _______  _____  ___  ___________       ________  __   ___   __    ___      ___        ________  
+     /""\     /" _   "|  /"     "|(\"   \|"  \("     _   ")     /"       )|/"| /  ") |" \  |"  |    |"  |      /"       ) 
+    /    \   (: ( \___) (: ______)|.\\   \    |)__/  \\__/     (:   \___/ (: |/   /  ||  | ||  |    ||  |     (:   \___/  
+   /' /\  \   \/ \       \/    |  |: \.   \\  |   \\_ /         \___  \   |    __/   |:  | |:  |    |:  |      \___  \    
+  //  __'  \  //  \ ___  // ___)_ |.  \    \. |   |.  |          __/  \\  (// _  \   |.  |  \  |___  \  |___    __/  \\   
+ /   /  \\  \(:   _(  _|(:      "||    \    \ |   \:  |         /" \   :) |: | \  \  /\  |\( \_|:  \( \_|:  \  /" \   :)  
+(___/    \___)\_______)  \_______) \___|\____\)    \__|        (_______/  (__|  \__)(__\_|_)\_______)\_______)(_______/
 ```
 
-A Claude Code plugin marketplace with three skills for building and maintaining high-quality AI agent tooling. Uses the [agentskills.io](https://agentskills.io/) specification.
+This repo contains agent skills that I use on a day to day basis outside of standard repo skills. They all comply with (and to some extent enforce) the [agentskills.io](https://agentskills.io/) specification.
 
-> **Python-first, with a TypeScript option:** `skill-optimizer` and `agent-tool-builder` assume bundled scripts are written in Python (PEP 723 inline metadata, `argparse`, `--json` output). If your team doesn't have Python available (common on Windows without a separate install), use **`skill-optimizer-ts`** instead — the same audit/eval workflow, but targeting TypeScript scripts run via `npx tsx`. Its script-level checks (interface contract, performance anti-patterns, security) are folded in and target JS/TS constructs, not Python's.
+Most of these tools use python scripts, though there are some that use typescript.
 
 ## Skills
 
-### skill-optimizer
+<details>
+  <summary>skill-optimizer</summary>
 
-Audits, optimizes, validates, and trigger-evals Claude Agent Skills (SKILL.md files).
+  ### skill-optimizer
 
-**Validation and analysis**
+  Audits, optimizes, validates, and trigger-evals Claude Agent Skills (SKILL.md files).
 
-- Validates SKILL.md frontmatter, body structure, & script references against the spec
-- Analyzes token budget, section balance, progressive disclosure quality, & gotchas coverage
-- Recommends whether to introduce helper scripts, and what patterns they should follow
-- Detects description overlap between sibling skills (bag-of-words cosine similarity)
+  **Validation and analysis**
 
-**Description optimization**
+  - Validates SKILL.md frontmatter, body structure, & script references against the spec
+  - Analyzes token budget, section balance, progressive disclosure quality, & gotchas coverage
+  - Recommends whether to introduce helper scripts, and what patterns they should follow
+  - Detects description overlap between sibling skills (bag-of-words cosine similarity)
 
-- Rewrites the `description` field with imperative phrasing and concrete trigger contexts
-- Runs a trigger-rate eval: invokes `claude -p` against a labeled query set and counts how often the skill activates
-- Iterates candidate descriptions against train failures, scores against a held-out validation set, and proposes the winner
+  **Description optimization**
 
-**Script quality** *(Python only)*
+  - Rewrites the `description` field with imperative phrasing and concrete trigger contexts
+  - Runs a trigger-rate eval: invokes `claude -p` against a labeled query set and counts how often the skill activates
+  - Iterates candidate descriptions against train failures, scores against a held-out validation set, and proposes the winner
 
-- Checks helper scripts for performance anti-patterns (AST static analysis + optional cProfile runtime profiling)
-- Validates the agent-tool interface contract: `--format`, `--quiet`, `--dry-run` flags; exit codes `0/1/2/3`; no `input()`, no free-form stdout errors
-- Counts tokens via the Anthropic SDK when available, heuristic fallback otherwise
+  **Script quality** *(Python only)*
 
-**Security**
+  - Checks helper scripts for performance anti-patterns (AST static analysis + optional cProfile runtime profiling)
+  - Validates the agent-tool interface contract: `--format`, `--quiet`, `--dry-run` flags; exit codes `0/1/2/3`; no `input()`, no free-form stdout errors
+  - Counts tokens via the Anthropic SDK when available, heuristic fallback otherwise
 
-- Audits a skill against the [OWASP Agentic Skills Top 10](https://owasp.org/www-project-agentic-skills-top-10/): over-privileged `allowed-tools`, hardcoded secrets, unsafe deserialization, shell injection, supply-chain (fetch-and-run, unpinned deps), and hidden-unicode instructions
-- Security checks cover SKILL.md and reference files regardless of language; Python-specific checks (unsafe deserialization, shell injection, dependency pinning) apply only to `.py` scripts
+  **Security**
 
-Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machine-readable output.
+  - Audits a skill against the [OWASP Agentic Skills Top 10](https://owasp.org/www-project-agentic-skills-top-10/): over-privileged `allowed-tools`, hardcoded secrets, unsafe deserialization, shell injection, supply-chain (fetch-and-run, unpinned deps), and hidden-unicode instructions
+  - Security checks cover SKILL.md and reference files regardless of language; Python-specific checks (unsafe deserialization, shell injection, dependency pinning) apply only to `.py` scripts
+
+  Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machine-readable output.
 
 | Script | Purpose |
 |---|---|
@@ -55,7 +59,10 @@ Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machin
 | `perf_check.py` | AST-based performance checker + optional cProfile profiling |
 | `audit_security.py` | OWASP Agentic Skills Top 10 audit; FAILs on hardcoded secrets, WARNs on the rest |
 
----
+</detail>
+
+<details>
+  <summary>skill-optimizer-ts</summary>
 
 ### skill-optimizer-ts
 
@@ -82,8 +89,11 @@ Scripts live in `skills/skill-optimizer-ts/scripts/` and accept `--format json|t
 | `audit_security.ts` | OWASP Agentic Skills Top 10 audit; FAILs on hardcoded secrets, WARNs on the rest |
 | `validate_agent_tool.ts` | Interface contract validation — flags, exit codes, output shape (folded in from agent-tool-builder) |
 
----
+</detail>
 
+<details>
+  <summary>agent-tool-builder</summary>
+  
 ### agent-tool-builder
 
 Builds and reviews **Python** scripts intended to be called by AI agents as tools. Enforces a standard interface contract (structured JSON output, predictable exit codes, `--format`, `--quiet`, `--dry-run`) and catches performance anti-patterns before they cost agent round-trips.
@@ -115,8 +125,12 @@ Scripts live in `skills/agent-tool-builder/scripts/` and accept `--json` for mac
 | `perf_check.py` | AST-based performance checker + optional cProfile profiling |
 | `init_tool.py` | Scaffold a new agent tool from the bundled PEP 723 template |
 
-## Installing
+</details>
 
+
+## Installing
+<details>
+  <summary>Install Details</summary> 
 This repo is a Claude Code plugin marketplace. From inside Claude Code, add the marketplace and install whichever skills you need:
 
 ```
@@ -143,20 +157,5 @@ After installing `skill-optimizer-ts`, run `npm ci` once inside `skills/skill-op
 
 **Both:**
 - Claude Code CLI (for trigger evals and description optimization)
+</details>
 
-## Language scope
-
-`skill-optimizer` and `agent-tool-builder` are opinionated about Python; `skill-optimizer-ts` exists specifically for teams that can't rely on Python being present. The Python-first reasoning for the other two skills:
-
-- **Self-contained scripts.** PEP 723 inline metadata lets a single `.py` file declare its own dependencies. `uv run script.py` resolves and installs them in an isolated environment on first run — no `package.json`, no build step, no `node_modules`. An agent can call it immediately after the skill is installed.
-- **No compilation.** The agent invokes scripts directly and reads their stdout. Languages that require a build step add fragility: the artifact may be stale, missing, or built for the wrong platform. Python runs from source.
-- **Stdlib breadth.** `argparse`, `json`, `pathlib`, `subprocess`, `ast`, `tokenize` — the patterns that make a good agent tool are all in the standard library. Most scripts in this repo have zero third-party dependencies.
-- **Ubiquity on agent hosts.** Python 3 ships with macOS, most Linux distributions, and WSL. An agent tool written in Python is more likely to just work across the environments Claude Code runs in than one that requires a language runtime to be separately installed.
-
-`skill-optimizer-ts` trades the zero-install PEP 723 story for `npx tsx` + a committed `package-lock.json` — one `npm ci` per skill install, then every script runs the same way `python3 script.py` would have. If your bundled scripts are in some other language entirely (Bash, Go, etc.), neither skill's script-level checks apply and you'll need to enforce your own interface contract and quality gates.
-
-If you're building skills whose bundled scripts use a different language:
-
-- SKILL.md structure, frontmatter validation, description optimization, trigger evals, and the OWASP checks on SKILL.md/references are all language-agnostic and work as-is.
-- Script-level checks (`validate_agent_tool.py`, `perf_check.py`, dependency pinning, unsafe deserialization) won't run or won't be meaningful.
-- You'd define your own interface contract and quality gates for that language.
