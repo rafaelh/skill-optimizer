@@ -1,21 +1,22 @@
 ---
 name: agent-tool-builder
 description: >
-  Use this skill when building or reviewing Python scripts intended to be called
-  by AI agents as tools. Activates when the user asks you to write, scaffold,
-  improve, or audit a script an agent will invoke — including CLI tools,
-  automation helpers, data-fetching scripts, query utilities, or any script
-  where machine-readable output, single-turn completeness, predictable exit
-  codes, and per-call performance matter. Trigger even when the user doesn't
-  say "agent tool" — e.g. "write me a script to query the database", "build a
-  CLI for this API", "make a script the agent can call", "I need a tool that
-  fetches X", "build something I can run from Claude to check Z", or "this
-  agent script feels slow". Also trigger when improving a script that returns
-  unstructured output, uses interactive prompts, requires multiple invocations,
-  or shows perf anti-patterns (O(n²) string concat, recompiled regexes,
-  list-membership tests).
+  Build or audit Python scripts called by AI agents as tools. BUILD mode: when
+  the user asks you to write, scaffold, or improve a script an agent will
+  invoke — CLI tools, automation helpers, data-fetching or query utilities,
+  anything where machine-readable output, single-turn completeness, predictable
+  exit codes, and per-call performance matter. Trigger without the words "agent
+  tool" — "write me a script to query the database", "build a CLI for this
+  API", "this agent script feels slow".
+  AUDIT mode: when the user asks you to review, critique, check, or trim an
+  existing agent-callable script — "review this tool", "is this script
+  agent-friendly", "check my CLI against best practices", "this tool has too
+  many flags", "trim this down", "why does the agent keep calling this twice".
+  Also trigger on scripts returning unstructured output, using interactive
+  prompts, requiring multiple invocations, or showing perf anti-patterns (O(n²)
+  string concat, recompiled regexes, list-membership tests).
 metadata:
-  version: "0.7"
+  version: "0.8"
 ---
 
 # Agent Tool Builder
@@ -25,35 +26,36 @@ constraint: an agent cannot interactively query a script — it must express
 exactly what it needs via flags on one invocation, and the script must return
 structured, parseable output with a meaningful exit code.
 
-## When you reach for this skill
+This skill operates in two modes. Identify which mode applies, then follow that
+mode's workflow exclusively.
 
-The user is asking you to:
+## Mode selection
 
-- Write a new Python script an agent will invoke as a tool
-- Scaffold a CLI utility for agent-driven automation
-- Improve an existing script so an agent can use it without multiple round-trips
-- Add machine-readable output, proper exit codes, or flag-based control to a script
-- Build a data-fetching, query, or reporting tool that needs to be agent-callable
+| Mode      | Use when the user wants to…                                          |
+|-----------|----------------------------------------------------------------------|
+| **Build** | Write a new agent tool, scaffold a CLI, or add agent-callable behaviour (machine-readable output, exit codes, flag-based control) to an existing script |
+| **Audit** | Review, critique, or trim an existing tool — check it against the contract, find flaws, or cut surface that has accreted |
 
-## Workflow
+"Improve this script so the agent can use it" is Build if the script is not yet
+agent-callable, Audit if it already is; when genuinely unclear, ask. If the
+request spans both ("audit this and fix what you find"), run Audit first, then
+fix. The **interface contract** (Build step 2), **Gotchas**, and
+**Anti-patterns** sections are shared — both modes use them.
+
+---
+
+## Mode 1 — Build
 
 ### 1. Pin down the design decisions
 
 Before writing code, run a decision-forcing interview. Most tools that need a
-rewrite a few hours later fail because this step was hand-waved. The discipline:
+rewrite a few hours later fail because this step was hand-waved.
 
-- **Enumerate the unresolved decisions** below before asking anything. A
-  decision is any choice not yet pinned down: alternatives without a pick,
-  ambiguous scope, missing constraints, hidden assumptions phrased as
-  "obviously we'd…".
-- **Order by dependency.** Data model constrains operations; operations
-  constrain the flag set; the flag set constrains the JSON output shape.
-- **Ask one question at a time, with your recommended answer and a one-line
-  rationale.** The user reviews a recommendation; they don't redo the analysis
-  from scratch.
-- **After each answer, re-scan for new branches** the answer opened up and
-  append them to the queue.
-- **Stop** when every decision below has an explicit answer.
+Enumerate the unresolved decisions below before asking anything, order them by
+dependency (data model → operations → flag set → JSON shape), and ask one at a
+time with your recommended answer and a one-line rationale — the user reviews a
+recommendation rather than redoing the analysis. Re-scan for new branches after
+each answer. Stop when every decision below has an explicit answer.
 
 **Canonical decisions for an agent tool:**
 
@@ -71,10 +73,9 @@ rewrite a few hours later fail because this step was hand-waved. The discipline:
 7. **What's the expected result-set size?** Single record, bounded list, or
    unbounded? This determines whether `--limit` / `--cursor` are required.
 
-**Questions to answer by reading code or docs, not the user:** how the
-underlying API/DB structures pagination, what field names already exist, what
-auth mechanism is in place. Reserve the user's attention for choices only they
-can make.
+**Answer these by reading code or docs, not by asking:** how the underlying
+API/DB paginates, what field names exist, what auth is in place. Reserve the
+user's attention for choices only they can make.
 
 ### 2. Apply the standard interface contract
 
@@ -110,30 +111,23 @@ designing a new tool or auditing an existing one.
 Exit code `3` is critical: it lets the agent distinguish "the thing doesn't
 exist" from "an error occurred" without parsing output. Add `4` (permission
 denied) or `5` (conflict) only when the agent's recovery path differs from
-`1`/`2`; see the interface contract reference loaded above.
+`1`/`2`.
 
-**JSON output shape:**
+**Output shapes.** Stdout carries clean JSON or nothing, so the agent can
+`json.loads()` it unconditionally; errors go to stderr as their own JSON
+object. Always include `meta`, even empty — it gives the agent a stable key.
+`data` may be an object for single-record operations, but the shape must not
+change with result count.
 
 ```json
-{
-  "data": [...],
-  "meta": {"count": 10, "total": 150, "next_cursor": "abc123"}
-}
+{"data": [...], "meta": {"count": 10, "total": 150, "next_cursor": "abc123"}}
 ```
-
-For single-record operations, `data` may be an object rather than an array.
-Always include `meta` even when empty — it gives the agent a stable key.
-
-**Structured errors on stderr (never stdout):**
-
 ```json
 {"error": "Resource not found", "code": "NOT_FOUND", "hint": "List with: list-things --json"}
 ```
 
-Stdout must remain clean JSON (or empty) so the agent can `json.loads()` it
-unconditionally. Optional fields `"input"` (echo failing arg) and
-`"transient": true` (retryable) help the agent decide between retry and
-surface-to-user.
+Optional error fields `"input"` (echo the failing arg) and `"transient": true`
+(retryable) help the agent choose between retry and surface-to-user.
 
 **Help text must include examples.** Use `argparse.RawDescriptionHelpFormatter`
 and put 2–3 realistic invocations in `epilog`. `--help` is the agent's primary
@@ -209,15 +203,10 @@ agent-tool specifics layer on top:
 
 ### 4. Design for single-turn completeness
 
-The agent cannot ask follow-up questions mid-script. Design flags so any
-legitimate need is expressible in one invocation:
-
-- [ ] Can the agent filter without a separate list call? (`--filter key=value`)
-- [ ] Can the agent select only the fields it needs? (`--fields id,name`)
-- [ ] Can the agent page through large result sets? (`--limit` / `--cursor`)
-- [ ] Can the agent combine logical conditions in one call?
-- [ ] Can the agent suppress noise? (`--quiet`)
-- [ ] Are all required identifiers passable as flags? (no interactive ID selection)
+The agent cannot ask follow-up questions mid-script. Beyond the flags the
+contract already mandates, confirm it can filter without a separate list call
+(`--filter key=value`), combine logical conditions in one invocation, and pass
+every required identifier as a flag — no interactive ID selection.
 
 Read [references/single-turn-design.md](references/single-turn-design.md)
 when: the operation naturally requires "first list, then act" (usually
@@ -225,36 +214,127 @@ resolvable with a combined `--name` or `--query` flag); you're tempted to add
 a `--mode` or `--action` flag (split instead); the output shape varies
 significantly between invocations.
 
-### 5. Validate the interface
+### 5. Validate the interface and check performance
 
-```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/validate_agent_tool.py" <script-path> --format json
-```
+Run both validators. For a single small tool, run them inline. For a suite, or
+when either produces long output, delegate to one subagent so the raw per-file
+dumps stay out of the main context.
 
-Checks: argparse present, `--format` / `--quiet` flags, reachable exit codes
-`0/1/2/3`, no `input()`, stdout/stderr not mixed, PEP 723 block (with both
-`requires-python` and `dependencies`) when non-stdlib imports are detected,
-`epilog=` with examples, structured error JSON on stderr.
+> **Subagent prompt:** Run these two commands against `<script-or-dir>` and
+> return only FAIL, WARN, and HIGH/MEDIUM findings, each with file, line, code,
+> and a one-line fix. Omit passes and LOW findings unless nothing else fired.
+>
+> ```bash
+> python3 "${CLAUDE_SKILL_DIR}/scripts/validate_agent_tool.py" <script-path> --format json
+> python3 "${CLAUDE_SKILL_DIR}/scripts/perf_check.py" <script-or-dir> --format json
+> ```
+>
+> If any perf finding needs interpretation, read
+> [references/perf-findings.md](references/perf-findings.md) and include the
+> recommended fix. If both are clean, return "Validators pass."
 
-### 6. Check for performance anti-patterns
+`validate_agent_tool.py` checks the contract mechanically: argparse present,
+`--format` / `--quiet`, reachable exit codes `0/1/2/3`, no `input()`,
+stdout/stderr not mixed, PEP 723 block when non-stdlib imports are detected,
+`epilog=` examples, structured error JSON on stderr.
 
-Agent tools are called many times per session, so per-call overhead compounds.
+`perf_check.py` accepts a file or a directory (walked recursively). Treat
+**HIGH** findings as blockers. Read
+[references/perf-findings.md](references/perf-findings.md) when deciding
+whether a flagged pattern matters in this specific tool, or when running the
+runtime profiler against a slow script.
 
-```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/perf_check.py" <script-or-dir> --format json
-```
+### 6. Justify anything the design didn't call for
 
-Accepts a file or a directory (walked recursively). Treat **HIGH** findings as
-blockers. Read [references/perf-findings.md](references/perf-findings.md) when
-interpreting findings, deciding whether a flagged pattern matters in this
-specific tool, or running the runtime profiler against a slow script.
+If implementation surfaced a flag that wasn't in the step-1 decisions, it needs
+a justification, not just a plausible use. Read
+[references/minimization.md](references/minimization.md) and apply the removal
+heuristics before it ships — the cheapest surface to cut is surface never added.
 
-## Gotchas
+---
 
-- **Don't skip the decision-forcing interview.** "We'll just have it return
-  the records" is the agent-tool equivalent of "we'll figure it out later" —
-  those decisions still exist and surface as bugs, awkward flag retrofits,
-  or whole-script rewrites.
+## Mode 2 — Audit
+
+Assess an existing agent tool from three independent angles, then reconcile.
+The reviews run as parallel subagents: they produce verbose output, they must
+not anchor on each other, and only their findings need reach the main context.
+
+### 1. Build a context brief
+
+Do this yourself before dispatching — the reviewers are far less useful
+guessing at it. One short paragraph covering: what the tool does and operates
+on; who invokes it (agent, human, CI, or a mix); where it is actually called
+from (grep the script name across the repo, sibling skills, and `.md` docs, and
+note real call sites); and whether it is published anywhere that makes removals
+breaking.
+
+### 2. Dispatch three reviewers in parallel
+
+Read [references/audit-reviewers.md](references/audit-reviewers.md) now — it
+holds the three ready-to-dispatch subagent prompts. Fill in the tool path and
+your context brief, then launch all three in one batch:
+
+- **A — contract audit.** Runs both validators, reads the contract and perf
+  references, then hand-checks what the scripts cannot verify.
+- **B — unconstrained review.** No checklist, no references. Reviews as a
+  critical engineer: bugs, design flaws, anything a linter never catches.
+- **C — minimization.** Follows
+  [references/minimization.md](references/minimization.md) when inventorying the
+  tool's surface, hunting for what never earned its keep. Proposes only cuts.
+
+### 3. Reconcile
+
+Merge the three reports yourself. Order matters:
+
+1. **Deduplicate.** A finding raised by two reviewers is stronger, not two
+   findings. Note the corroboration.
+2. **Resolve the built-in conflict.** Reviewer B proposes additions; Reviewer C
+   proposes cuts. Where they collide — B wants a flag, C flags that area as
+   accreting — **default to not adding.** An addition ships only if it removes a
+   round-trip the agent currently has to make, fixes a correctness bug, or the
+   user asks for it. "Would be nice to have" loses to "keeps `--help`
+   readable". This default is the whole reason C exists; do not quietly
+   override it because B's argument reads well.
+3. **Rank by cost to the caller.** A broken JSON shape or an unreachable exit
+   `3` costs the agent every call. A LOW perf finding costs nothing. Sort
+   accordingly, not by severity label.
+
+### 4. Report, apply, re-validate
+
+Present the reconciled findings grouped as **Blockers** (contract violations,
+correctness bugs, HIGH perf), **Improvements**, and **Removals**, noting which
+reviewer raised each and whether it was corroborated.
+
+Apply blockers and approved improvements. Do not apply removals unilaterally —
+deleting a flag someone relies on is a breaking change the user should sign off
+on, even when the evidence looks conclusive.
+
+Re-run Reviewer A's two commands after changes land: fixes to one contract rule
+routinely break another — cutting a flag can orphan an `epilog` example,
+restructuring output can make exit `3` unreachable.
+
+### Gotchas (Audit)
+
+- **Don't hand the reviewers each other's output.** Running them sequentially
+  collapses three lenses into one — the second confirms the first instead of
+  seeing past it.
+- **A clean validator run is not a clean tool.** `validate_agent_tool.py`
+  checks structure, not judgment: it can't tell that a flag is useless or that
+  the tool needs two calls to do one thing. Reviewers B and C exist for exactly
+  that gap — don't skip them when A comes back green.
+- **Human-facing surface is not dead surface.** `--format text`, colour output,
+  and profiling modes serve the maintainer. If a report proposes cutting one,
+  check whether it mistook audience for disuse.
+- **Findings are not automatically a rewrite.** Three MEDIUM findings on a
+  stable call surface want three fixes, not a regeneration from the scaffolder.
+
+---
+
+## Gotchas (both modes)
+
+- **Don't skip the decision-forcing interview.** "We'll just have it return the
+  records" is "we'll figure it out later" — those decisions still exist, and
+  resurface as bugs, awkward flag retrofits, or whole-script rewrites.
 - **Stdout must be clean JSON or empty.** A startup message, progress spinner,
   or "done!" line on stdout breaks the agent's `json.loads()`. Route
   informational output to stderr, gated on `--quiet`.
@@ -272,18 +352,15 @@ specific tool, or running the runtime profiler against a slow script.
 - **`--fields` filtering should happen before serialisation.** Fetching the
   full record then dropping keys wastes bandwidth. Pass through to the
   underlying API/query when the backend supports field selection.
-- **Cursor tokens are opaque.** Pass them through verbatim in
-  `meta.next_cursor`; don't decode or transform.
+- **Cursor tokens are opaque.** Pass them verbatim in `meta.next_cursor`.
 - **Catch all exceptions at `main()`.** An unhandled traceback on stderr is
   confusing to the agent. Emit structured `{"error", "code", "hint"}` JSON and
   exit `2`.
-- **Compile regexes at module scope.** Defining a pattern inside `main()` or a
-  per-record loop recompiles it on every call. The perf linter flags this.
-- **Build output structures, then serialise once.** `out += json.dumps(record) + "\n"`
-  inside a loop is O(n²). Collect into a list, then dump the assembled
-  structure.
-- **Use sets for membership tests against literals.** `if x in {"a","b","c"}`
-  is O(1); `if x in ["a","b","c"]` rebuilds and scans the list each call.
+- **Per-call overhead compounds.** Compile regexes at module scope, build
+  output structures and serialise once (`out += json.dumps(r)` in a loop is
+  O(n²)), and use set literals for membership tests. `perf_check.py` flags all
+  three; read [references/perf-findings.md](references/perf-findings.md) when
+  you need the rationale or the severity policy.
 - **Keep units consistent across a tool suite.** Pick one timestamp format
   (ISO-8601), one duration unit (seconds), one size unit (bytes), and write
   the convention into the suite's `_common.py`. Mixing ISO-8601 in one tool
@@ -295,29 +372,34 @@ specific tool, or running the runtime profiler against a slow script.
   forever — the worst failure mode for an agent. Greenfield agent tools
   should just not have prompts (per the "no `input()`" rule).
 
-## Anti-patterns to flag
+## Anti-patterns to flag (both modes)
 
-- Banner, table header, or "Fetching data..." on **stdout** — breaks JSON parsing
-- `sys.exit(0)` on empty results instead of `sys.exit(3)`
+Every Gotcha above is also a scan target. These are the ones with no gotcha of
+their own:
+
 - `argparse` with no `--format` flag — agents have no way to request structured output
 - A single script with `--action create|update|delete` — split into separate scripts
 - `input()` or `getpass()` anywhere in the call path
 - Hardcoded page size with no `--limit`
-- Raising exceptions that produce Python tracebacks instead of structured `{"error"}` JSON
 - Returning different JSON shapes by result count (object vs array) — agent parsing breaks
-- Required business logic in the text formatter that's absent from JSON
 - A script requiring two sequential calls for one logical operation
 - `argparse.ArgumentParser` without `epilog=` examples — the validator flags this
 - Writing every test up front then writing the script (horizontal slicing — see the `tdd` skill)
 - Mocking internal functions instead of running the script as a subprocess
-- Inconsistent units or field names across sibling tools in a suite
 - A confirmation prompt without `--yes` AND without `sys.stdin.isatty()` — silent hang
+- Accreted surface: flags reimplementing shell primitives (`--sort-by`,
+  `--head`, `--grep` on JSON the agent could pipe to `jq`), tuning knobs no call
+  site has ever set (`--timeout`, `--retries`), both halves of one axis
+  (`--verbose` alongside `--quiet`), escape hatches that bypass the tool's own
+  interface (`--raw`, `--extra-args`), or a `--help` long enough that choosing
+  an invocation takes two readings. Read
+  [references/minimization.md](references/minimization.md) before adding one
+  more flag, or when auditing what is already there.
 
 ## Worked examples
 
-Read [references/patterns.md](references/patterns.md) when:
-
-- You're auditing existing code against the rules above and want a side-by-side comparison
-- A user asks *why* one of the rules matters and code lands the point faster than prose
-- You're scaffolding from scratch and want to confirm the shape of the
-  happy-path output, validation block, JSONL streaming, or stderr-logging idiom
+Read [references/patterns.md](references/patterns.md) when you want a
+side-by-side good/bad comparison to audit against, when a user asks *why* a
+rule matters and code lands the point faster than prose, or when you need to
+confirm the shape of the happy-path output, validation block, JSONL streaming,
+or stderr-logging idiom.
