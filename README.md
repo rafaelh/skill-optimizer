@@ -16,35 +16,30 @@ Most of these tools use python scripts, though there are some that use typescrip
 <details>
   <summary>skill-optimizer</summary>
 
-  ### skill-optimizer
+### skill-optimizer
+Audits, optimizes, validates, and trigger-evals Claude Agent Skills (SKILL.md files).
 
-  Audits, optimizes, validates, and trigger-evals Claude Agent Skills (SKILL.md files).
+**Validation and analysis**
+- Validates SKILL.md frontmatter, body structure, & script references against the spec
+- Analyzes token budget, section balance, progressive disclosure quality, & gotchas coverage
+- Recommends whether to introduce helper scripts, and what patterns they should follow
+- Detects description overlap between sibling skills (bag-of-words cosine similarity)
 
-  **Validation and analysis**
+**Description optimization**
+- Rewrites the `description` field with imperative phrasing and concrete trigger contexts
+- Runs a trigger-rate eval: invokes `claude -p` against a labeled query set and counts how often the skill activates
+- Iterates candidate descriptions against train failures, scores against a held-out validation set, and proposes the winner
 
-  - Validates SKILL.md frontmatter, body structure, & script references against the spec
-  - Analyzes token budget, section balance, progressive disclosure quality, & gotchas coverage
-  - Recommends whether to introduce helper scripts, and what patterns they should follow
-  - Detects description overlap between sibling skills (bag-of-words cosine similarity)
+**Script quality** *(Python only)*
+- Checks helper scripts for performance anti-patterns (AST static analysis + optional cProfile runtime profiling)
+- Validates the agent-tool interface contract: `--format`, `--quiet`, `--dry-run` flags; exit codes `0/1/2/3`; no `input()`, no free-form stdout errors
+- Counts tokens via the Anthropic SDK when available, heuristic fallback otherwise
 
-  **Description optimization**
+**Security**
+- Audits a skill against the [OWASP Agentic Skills Top 10](https://owasp.org/www-project-agentic-skills-top-10/): over-privileged `allowed-tools`, hardcoded secrets, unsafe deserialization, shell injection, supply-chain (fetch-and-run, unpinned deps), and hidden-unicode instructions
+- Security checks cover SKILL.md and reference files regardless of language; Python-specific checks (unsafe deserialization, shell injection, dependency pinning) apply only to `.py` scripts
 
-  - Rewrites the `description` field with imperative phrasing and concrete trigger contexts
-  - Runs a trigger-rate eval: invokes `claude -p` against a labeled query set and counts how often the skill activates
-  - Iterates candidate descriptions against train failures, scores against a held-out validation set, and proposes the winner
-
-  **Script quality** *(Python only)*
-
-  - Checks helper scripts for performance anti-patterns (AST static analysis + optional cProfile runtime profiling)
-  - Validates the agent-tool interface contract: `--format`, `--quiet`, `--dry-run` flags; exit codes `0/1/2/3`; no `input()`, no free-form stdout errors
-  - Counts tokens via the Anthropic SDK when available, heuristic fallback otherwise
-
-  **Security**
-
-  - Audits a skill against the [OWASP Agentic Skills Top 10](https://owasp.org/www-project-agentic-skills-top-10/): over-privileged `allowed-tools`, hardcoded secrets, unsafe deserialization, shell injection, supply-chain (fetch-and-run, unpinned deps), and hidden-unicode instructions
-  - Security checks cover SKILL.md and reference files regardless of language; Python-specific checks (unsafe deserialization, shell injection, dependency pinning) apply only to `.py` scripts
-
-  Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machine-readable output.
+Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machine-readable output.
 
 | Script | Purpose |
 |---|---|
@@ -59,6 +54,8 @@ Most of these tools use python scripts, though there are some that use typescrip
 | `audit_security.py` | OWASP Agentic Skills Top 10 audit; FAILs on hardcoded secrets, WARNs on the rest |
 
 </detail>
+
+---
 
 <details>
   <summary>skill-optimizer-ts</summary>
@@ -89,6 +86,8 @@ Scripts live in `skills/skill-optimizer-ts/scripts/` and accept `--format json|t
 | `validate_agent_tool.ts` | Interface contract validation — flags, exit codes, output shape (folded in from agent-tool-builder) |
 
 </detail>
+
+---
 
 <details>
   <summary>agent-tool-builder</summary>
@@ -126,6 +125,7 @@ Scripts live in `skills/agent-tool-builder/scripts/` and accept `--json` for mac
 
 </details>
 
+---
 
 ## Installing
 <details>
