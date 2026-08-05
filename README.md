@@ -1,11 +1,18 @@
 ```
-    .                  .     .-. .         . .     
-   / \                _|_   (   )|      o  | |     
-  /___\  .-.. .-. .--. |     `-. |.-.   .  | | .--.
- /     \(   |(.-' |  | |    (   )|-.'   |  | | `--.
-'       ``-`| `--''  `-`-'   `-' '  `--' `-`-`-`--'
-         ._.'                                      
+                 .                  .     .-. .         . .
+                / \                _|_   (   )|      o  | |
+               /___\  .-.. .-. .--. |     `-. |.-.   .  | | .--.
+              /     \(   |(.-' |  | |    (   )|-.'   |  | | `--.
+             '       ``-`| `--''  `-`-'   `-' '  `--' `-`-`-`--'
+                      ._.'
 ```
+
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.14%2B-blue?logo=python&logoColor=white" alt="Python 3.14+"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-18%2B-green?logo=node.js&logoColor=white" alt="Node.js 18+"></a>
+  <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude_Code-plugin-orange?logo=anthropic" alt="Claude Code"></a>
+  <a href="https://owasp.org/www-project-agentic-skills-top-10/"><img src="https://img.shields.io/badge/OWASP-audited-brightgreen?logo=owasp" alt="OWASP"></a>
+</p>
 
 This repo contains agent skills that I use on a day to day basis outside of standard repo skills. They all comply with (and to some extent enforce) the [agentskills.io](https://agentskills.io/) specification.
 
@@ -53,7 +60,7 @@ Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machin
 | `perf_check.py` | AST-based performance checker + optional cProfile profiling |
 | `audit_security.py` | OWASP Agentic Skills Top 10 audit; FAILs on hardcoded secrets, WARNs on the rest |
 
-</detail>
+</details>
 
 ---
 
@@ -85,13 +92,13 @@ Scripts live in `skills/skill-optimizer-ts/scripts/` and accept `--format json|t
 | `audit_security.ts` | OWASP Agentic Skills Top 10 audit; FAILs on hardcoded secrets, WARNs on the rest |
 | `validate_agent_tool.ts` | Interface contract validation — flags, exit codes, output shape (folded in from agent-tool-builder) |
 
-</detail>
+</details>
 
 ---
 
 <details>
   <summary>agent-tool-builder</summary>
-  
+
 ### agent-tool-builder
 
 Builds and reviews **Python** scripts intended to be called by AI agents as tools. Enforces a standard interface contract (structured JSON output, predictable exit codes, `--format`, `--quiet`, `--dry-run`) and catches performance anti-patterns before they cost agent round-trips.
@@ -129,7 +136,7 @@ Scripts live in `skills/agent-tool-builder/scripts/` and accept `--json` for mac
 
 ## Installing
 <details>
-  <summary>Install Details</summary> 
+  <summary>Install Details</summary>
 This repo is a Claude Code plugin marketplace. From inside Claude Code, add the marketplace and install whichever skills you need:
 
 ```
