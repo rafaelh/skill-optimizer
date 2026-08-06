@@ -153,8 +153,9 @@ cython_debug/
 .DS_Store
 Thumbs.db
 
-# Claude
-.claude/
+# Claude — local settings stay out, but .claude/skills/ is tracked source
+.claude/*
+!.claude/skills/
 
 # Node.js / npm (skill-optimizer-ts)
 node_modules/
