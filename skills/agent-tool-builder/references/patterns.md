@@ -52,8 +52,7 @@ before discovering the call was invalid.
 
 ```python
 if args.output_dir is None:
-    _emit_error("--output-dir is required", "MISSING_ARG",
-                hint="Pass --output-dir /path/to/dir")
+    _emit_error("--output-dir is required", "MISSING_ARG", hint="Pass --output-dir /path/to/dir")
     sys.exit(1)
 result = expensive_api_call()
 ```
@@ -79,6 +78,7 @@ def _log(msg: str) -> None:
     if not args.quiet:
         print(msg, file=sys.stderr)
 
+
 _log("Starting fetch...")
 data = fetch()
 _log(f"Fetched {len(data)} records")
@@ -91,7 +91,7 @@ print(json.dumps({"data": data, "meta": {"count": len(data)}}))
 
 ```python
 records = []
-for row in fetch_unbounded():            # could be millions
+for row in fetch_unbounded():  # could be millions
     records.append(transform(row))
 print(json.dumps({"data": records, "meta": {"count": len(records)}}))
 ```

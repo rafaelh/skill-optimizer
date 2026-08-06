@@ -46,7 +46,7 @@ import token as token_mod
 import tokenize
 from typing import Any
 
-from skill_lib import _DANGEROUS_UNICODE, parse_frontmatter, sanitize_for_echo
+from skill_lib import DANGEROUS_UNICODE, parse_frontmatter, sanitize_for_echo
 
 # --- AST04: hardcoded secrets ------------------------------------------------
 # High-confidence: the token shape itself is the secret, so a hit is reported
@@ -289,7 +289,7 @@ def _check_hidden_unicode(body: str, skill_md: Path, findings: list[Finding]) ->
     """AST01: malicious skills hiding instructions via invisible/bidi unicode."""
     seen: set[str] = set()
     for ch in body:
-        if ch in _DANGEROUS_UNICODE and ch not in seen:
+        if ch in DANGEROUS_UNICODE and ch not in seen:
             seen.add(ch)
             findings.append(
                 Finding(

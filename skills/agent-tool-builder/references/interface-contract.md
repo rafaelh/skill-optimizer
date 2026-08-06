@@ -200,8 +200,11 @@ guardrails are non-negotiable:
 1. **A `--yes` (or `--force`) flag** the agent can pass to skip the prompt:
 
    ```python
-   parser.add_argument("--yes", action="store_true",
-                       help="Skip confirmation prompts (required for non-interactive use)")
+   parser.add_argument(
+       "--yes",
+       action="store_true",
+       help="Skip confirmation prompts (required for non-interactive use)",
+   )
    ```
 
 2. **TTY auto-detection** so an unflagged invocation from a subprocess doesn't
@@ -209,6 +212,7 @@ guardrails are non-negotiable:
 
    ```python
    import sys
+
    needs_confirmation = not args.yes and sys.stdin.isatty()
    if needs_confirmation:
        reply = input("Proceed? [y/N] ").strip().lower()
@@ -263,7 +267,7 @@ validate the cursor format on the client side.
 ### Offset-based (fallback)
 
 ```python
-result = fetch(limit=20, offset=0)   # page 1
+result = fetch(limit=20, offset=0)  # page 1
 result = fetch(limit=20, offset=20)  # page 2
 ```
 
@@ -300,8 +304,9 @@ def main(argv=None):
     except KeyboardInterrupt:
         return EXIT_USER_ERROR
     except Exception as exc:
-        _emit_error(str(exc), "UNEXPECTED_ERROR",
-                    hint="Check logs or re-run with --debug for a traceback")
+        _emit_error(
+            str(exc), "UNEXPECTED_ERROR", hint="Check logs or re-run with --debug for a traceback"
+        )
         return EXIT_SYSTEM_ERROR
 ```
 

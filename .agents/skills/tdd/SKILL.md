@@ -122,7 +122,7 @@ Run after each RED→GREEN cycle and after each refactor step:
 .venv/bin/ruff format --check skills/<skill>/scripts/
 
 # Type-check touched files
-.venv/bin/mypy skills/<skill>/scripts/<file>.py
+.venv/bin/pyright skills/<skill>/scripts/<file>.py
 ```
 
 ## Checklist Per Cycle

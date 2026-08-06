@@ -164,4 +164,3 @@ After installing `skill-optimizer-ts`, run `npm ci` once inside `skills/skill-op
 **Both:**
 - Claude Code CLI (for trigger evals and description optimization)
 </details>
-

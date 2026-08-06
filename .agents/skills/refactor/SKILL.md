@@ -75,6 +75,7 @@ Explicit code is better than compact code when the compact version requires a me
 # UNCLEAR: Dense conditional chain
 status = "new" if is_new else "updated" if is_updated else "archived" if is_archived else "active"
 
+
 # CLEAR: Readable early-return function
 def get_status(item: Item) -> str:
     if item.is_new:
@@ -207,6 +208,7 @@ for item in items:
 # After
 result = {item.id: item.name for item in items}
 
+
 # SIMPLIFY: Nested conditionals with early return
 # Before
 def process(data):
@@ -220,6 +222,8 @@ def process(data):
             raise ValueError("Invalid data")
     else:
         raise TypeError("Data is None")
+
+
 # After
 def process(data):
     if data is None:
@@ -229,6 +233,7 @@ def process(data):
     if not data.has_permission():
         raise PermissionError("No permission")
     return do_work(data)
+
 
 # Note: This guard-clause rewrite is behavior-preserving because each input still maps
 # to the same result/exception as the nested version.
@@ -268,7 +273,7 @@ Run these commands in order after completing a simplification pass:
 .venv/bin/ruff format skills/<skill>/scripts/
 
 # Type-check
-.venv/bin/mypy skills/<skill>/scripts/<file>.py
+.venv/bin/pyright skills/<skill>/scripts/<file>.py
 
 # Run affected tests (scope to the skill you changed)
 .venv/bin/pytest skills/<skill>/scripts/tests/
@@ -282,7 +287,7 @@ Checklist:
 - [ ] All existing tests pass without modification
 - [ ] `ruff check` passes with no new issues
 - [ ] `ruff format --check` passes (no formatting drift)
-- [ ] `mypy` passes for the touched files
+- [ ] `pyright` passes for the touched files
 - [ ] Each simplification is a reviewable, incremental change
 - [ ] The diff is clean — no unrelated changes mixed in
 - [ ] Simplified code follows project conventions (checked against CLAUDE.md / AGENTS.md)

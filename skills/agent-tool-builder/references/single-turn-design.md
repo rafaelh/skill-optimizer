@@ -111,9 +111,9 @@ Inconsistency breaks that model:
 **Bad — shape varies by result count:**
 ```python
 if len(results) == 1:
-    return results[0]   # object
+    return results[0]  # object
 else:
-    return results       # array
+    return results  # array
 ```
 
 **Good — always the same shape:**

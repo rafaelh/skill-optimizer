@@ -54,6 +54,7 @@ def test_quest_stage_advances(engine):
     # Reaches into private quest log internals
     assert engine._quest_module._active_quests["goblin_hunt"]._stage_index == 1
 
+
 # GOOD: Verifies through the public query interface
 def test_completing_objective_advances_quest_stage(engine, setup_player_in_location):
     setup_player_in_location(engine, "forest")

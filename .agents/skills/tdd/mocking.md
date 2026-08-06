@@ -28,6 +28,7 @@ Pass external dependencies in rather than creating them internally:
 def process_payment(order, payment_client):
     return payment_client.charge(order.total)
 
+
 # Hard to mock
 def process_payment(order):
     client = StripeClient(os.environ["STRIPE_KEY"])
@@ -44,6 +45,7 @@ class ApiClient:
     def get_user(self, user_id): ...
     def get_orders(self, user_id): ...
     def create_order(self, data): ...
+
 
 # Bad: mocking requires conditional logic inside the mock
 class ApiClient:

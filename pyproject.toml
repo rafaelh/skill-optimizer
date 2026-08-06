@@ -1,11 +1,20 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.backends.legacy:build"
-
 [project]
 name = "skill-optimizer"
 version = "2.0"
 requires-python = ">=3.14"
+
+# Not a distributable library: the skill scripts are run in place by path and
+# the repo ships as a Claude Code plugin (.claude-plugin/), not to PyPI. No
+# build backend, so uv treats this as a virtual project.
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.411",
+    "pytest>=9",
+    "ruff>=0.15",
+]
 
 [tool.ruff]
 target-version = "py314"
@@ -45,6 +54,7 @@ ignore = [
     "PLR0911", # too many return statements — main() CLI dispatch has many early returns
     "PLR0912", # too many branches — AST visitors are inherently branchy
     "PLR0913", # too many arguments
+    "PLR0917", # too many positional arguments — same rationale as PLR0913
     "PLR0915", # too many statements — main() is CLI dispatch, inherently wordy
 ]
 
@@ -53,9 +63,6 @@ ignore = [
     "ERA001",  # noqa comments are intentional
     "RUF001",  # × in user-facing messages is intentional (multiplication sign)
     "N802",    # visit_* method names are required by ast.NodeVisitor API
-]
-"skills/skill-optimizer/scripts/count_tokens.py" = [
-    "PLC0415",  # lazy import of anthropic is intentional — avoids import cost on heuristic path
 ]
 "skills/skill-optimizer/scripts/skill_lib.py" = [
     "PLE2502", # intentional BiDi chars — this IS the blocklist being defined
@@ -85,16 +92,10 @@ ignore = [
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
 
-[tool.mypy]
-python_version = "3.14"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-warn_redundant_casts = true
-warn_unused_ignores = false   # pstats.Stats.stats is untyped; suppress globally
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-show_error_codes = true
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["skills"]
+exclude = ["**/node_modules", "**/__pycache__", ".venv"]
+venvPath = "."
+venv = ".venv"

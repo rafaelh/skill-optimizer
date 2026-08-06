@@ -169,9 +169,7 @@ agent-tool specifics layer on top:
 
    ```python
    def test_happy_path():
-       r = subprocess.run(
-           [sys.executable, str(TOOL), "--id=42"], capture_output=True, text=True
-       )
+       r = subprocess.run([sys.executable, str(TOOL), "--id=42"], capture_output=True, text=True)
        assert r.returncode == 0, r.stderr
        payload = json.loads(r.stdout)
        assert payload["data"]["id"] == "42"

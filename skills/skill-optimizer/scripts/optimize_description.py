@@ -54,7 +54,7 @@ class Candidate:
     round: int  # 0 == baseline
     train_pass_rate: float
     validation_pass_rate: float
-    failures_addressed: list[str] = field(default_factory=list)
+    failures_addressed: list[str] = field(default_factory=list[str])
 
 
 @dataclass

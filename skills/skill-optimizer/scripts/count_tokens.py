@@ -34,6 +34,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 from pathlib import Path
@@ -72,10 +73,14 @@ def count(text: str, model: str = DEFAULT_MODEL) -> dict[str, Any]:
 def _count_via_sdk(text: str, model: str) -> dict[str, Any]:
     # Lazy import — if the SDK isn't available, the heuristic path doesn't
     # need to pay the import cost.
-    from anthropic import Anthropic  # type: ignore[import-not-found]
+    # Resolved through importlib rather than a plain `import`: the SDK is an
+    # optional dependency, so its types aren't available to the type checker
+    # and `Any` is the honest annotation. Raises ModuleNotFoundError when the
+    # SDK is absent, which count() catches and falls back from.
+    anthropic: Any = importlib.import_module("anthropic")
 
-    client = Anthropic()
-    response = client.beta.messages.count_tokens(
+    client: Any = anthropic.Anthropic()
+    response: Any = client.beta.messages.count_tokens(
         model=model,
         messages=[{"role": "user", "content": text}],
     )

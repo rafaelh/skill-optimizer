@@ -29,7 +29,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-from typing import Any
+from typing import Any, cast
 
 from skill_lib import emit_error, sanitize_for_echo
 
@@ -56,7 +56,7 @@ class EvalSummary:
     skill_name: str
     runs_per_query: int
     train_split: float
-    by_query: list[QueryResult] = field(default_factory=list)
+    by_query: list[QueryResult] = field(default_factory=list[QueryResult])
     train_pass_rate: float = 0.0
     validation_pass_rate: float = 0.0
 
@@ -75,16 +75,18 @@ def load_queries(path: Path) -> list[dict[str, Any]]:
         raise ValueError(f"queries file is not valid JSON: {exc}") from exc
     if not isinstance(data, list) or not data:
         raise ValueError("queries file must be a non-empty JSON array")
-    for i, item in enumerate(data):
+    items = cast("list[Any]", data)
+    for i, item in enumerate(items):
         if not isinstance(item, dict):
             raise TypeError(f"queries[{i}] must be an object")
-        if not isinstance(item.get("query"), str) or not item["query"]:
+        entry = cast("dict[str, Any]", item)
+        if not isinstance(entry.get("query"), str) or not entry["query"]:
             raise TypeError(f"queries[{i}].query must be a non-empty string")
-        if not isinstance(item.get("should_trigger"), bool):
+        if not isinstance(entry.get("should_trigger"), bool):
             raise TypeError(f"queries[{i}].should_trigger must be a boolean")
-        if "split" in item and item["split"] not in ("train", "validation"):
+        if "split" in entry and entry["split"] not in ("train", "validation"):
             raise ValueError(f"queries[{i}].split must be 'train' or 'validation' if set")
-    return data
+    return cast("list[dict[str, Any]]", items)
 
 
 def assign_splits(queries: list[dict[str, Any]], train_fraction: float) -> None:
@@ -116,7 +118,7 @@ def run_query(query: str, *, cli_bin: str = "claude") -> dict[str, Any]:
         check=True,
     )
     try:
-        return json.loads(result.stdout)  # type: ignore[no-any-return]
+        return json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError(
             f"CLI returned non-JSON output: {sanitize_for_echo(result.stdout, 200)!r}"
@@ -125,24 +127,28 @@ def run_query(query: str, *, cli_bin: str = "claude") -> dict[str, Any]:
 
 def did_skill_trigger(cli_response: dict[str, Any], skill_name: str) -> bool:
     """Inspect a CLI JSON response for a Skill tool use matching skill_name."""
-    messages = cli_response.get("messages") or []
+    messages: Any = cli_response.get("messages") or []
     if not isinstance(messages, list):
         return False
-    for message in messages:
+    for message in cast("list[Any]", messages):
         if not isinstance(message, dict):
             continue
-        content = message.get("content") or []
+        content: Any = cast("dict[str, Any]", message).get("content") or []
         if not isinstance(content, list):
             continue
-        for block in content:
+        for block in cast("list[Any]", content):
             if not isinstance(block, dict):
                 continue
-            if block.get("type") != "tool_use":
+            fields = cast("dict[str, Any]", block)
+            if fields.get("type") != "tool_use":
                 continue
-            if block.get("name") != "Skill":
+            if fields.get("name") != "Skill":
                 continue
-            tool_input = block.get("input") or {}
-            if isinstance(tool_input, dict) and tool_input.get("skill") == skill_name:
+            tool_input: Any = fields.get("input") or {}
+            if (
+                isinstance(tool_input, dict)
+                and cast("dict[str, Any]", tool_input).get("skill") == skill_name
+            ):
                 return True
     return False
 

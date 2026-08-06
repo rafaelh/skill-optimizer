@@ -101,7 +101,7 @@ def analyze(skill_dir: Path) -> list[Issue]:
                 "SKILL.md is missing YAML frontmatter",
             )
         ]
-    desc = fm.get("description", "") if isinstance(fm, dict) else ""
+    desc = fm.get("description", "")
     prose = _strip_code_spans(body)
 
     _check_description(desc, issues)

@@ -29,7 +29,7 @@ _ANSI_RE = re.compile(
 
 # Unicode codepoints that aren't visible but can manipulate or hide content.
 # Escaped (not stripped) so they remain inspectable in the sanitized output.
-_DANGEROUS_UNICODE = frozenset(
+DANGEROUS_UNICODE = frozenset(
     {
         # Bidi overrides + isolates (Trojan Source, RLO file-name attacks).
         "‪",
@@ -158,7 +158,7 @@ def sanitize_for_echo(value: Any, max_len: int = 200) -> str:
             cleaned.append(ch)
         elif cp < 0x20 or cp == 0x7F:
             cleaned.append(f"\\x{cp:02x}")
-        elif ch in _DANGEROUS_UNICODE:
+        elif ch in DANGEROUS_UNICODE:
             cleaned.append(f"\\u{cp:04x}")
         else:
             cleaned.append(ch)
