@@ -38,7 +38,7 @@ select = [
     "PL",   # pylint
 ]
 ignore = [
-    "S102",    # use of exec — intentional in profile_script
+    "S102",    # use of exec — intentional in run_profile
     "T201",    # print — this is a CLI tool
     "TRY003",  # long exception messages
     "PLR2004", # magic value comparisons
