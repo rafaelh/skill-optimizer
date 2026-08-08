@@ -125,14 +125,31 @@ describe("detect_skill_overlap CLI", () => {
     expect(result.status).toBe(0);
   });
 
-  it("exits 1 and reports JSON pairs above threshold", () => {
+  it("exits 0 and reports JSON pairs above threshold", () => {
     makeSkillDir(root, "skill-a", OVERLAPPING_DESCRIPTION);
     makeSkillDir(root, "skill-b", OVERLAPPING_DESCRIPTION);
     const result = runCli("detect_skill_overlap.ts", [root, "--json"]);
-    expect(result.status).toBe(1);
+    expect(result.status).toBe(0);
     const data = JSON.parse(result.stdout);
     expect(data.pairs.length).toBeGreaterThanOrEqual(1);
     expect(data.pairs[0]).toHaveProperty("shared_keywords");
+  });
+
+  it("exits 1 on findings only with --exit-on-warn", () => {
+    makeSkillDir(root, "skill-a", OVERLAPPING_DESCRIPTION);
+    makeSkillDir(root, "skill-b", OVERLAPPING_DESCRIPTION);
+    const result = runCli("detect_skill_overlap.ts", [root, "--json", "--exit-on-warn"]);
+    expect(result.status).toBe(1);
+  });
+
+  it("ranks shared_keywords identically across runs", () => {
+    makeSkillDir(root, "skill-a", OVERLAPPING_DESCRIPTION);
+    makeSkillDir(root, "skill-b", OVERLAPPING_DESCRIPTION);
+    const runs = Array.from({ length: 3 }, () => {
+      const out = runCli("detect_skill_overlap.ts", [root, "--json"]).stdout;
+      return JSON.stringify(JSON.parse(out).pairs[0].shared_keywords);
+    });
+    expect(new Set(runs).size).toBe(1);
   });
 
   it("exits 2 when the target path does not exist", () => {

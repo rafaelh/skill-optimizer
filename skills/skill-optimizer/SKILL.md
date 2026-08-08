@@ -46,7 +46,8 @@ Interpreting codes (if reviewing results yourself):
 - `analyze_skill.py` — content anti-patterns: declarative openings, missing trigger contexts, body over 500 lines / 5000 tokens, generic filler, unguarded references. Codes: `analyze.<surface>.<concern>`.
 - `count_tokens.py` — exact count (anthropic SDK) or calibrated heuristic (`len(text) / 3.5`). Returns `exact: false` on heuristic; treat as ±20%.
 
-Pass `--exit-on-warn` to treat warnings as failures (CI / pre-commit).
+Pass `--exit-on-warn` to treat findings as failures (CI / pre-commit); without it these scripts
+exit 0 and you read the payload. `detect_skill_overlap.py` accepts it too.
 
 2. **Optimize the description.** Read [references/description-guide.md](references/description-guide.md) when:
 

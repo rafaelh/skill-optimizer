@@ -15,7 +15,7 @@ A skill is executable trust: its SKILL.md becomes agent instructions and its bun
 
 | ID    | Risk                  | Auto-checked? | Code(s) |
 |-------|-----------------------|---------------|---------|
-| AST01 | Malicious Skills      | Partial — hidden/bidi unicode in instructions | `security.body.hidden-unicode` |
+| AST01 | Malicious Skills      | Partial — hidden/bidi unicode; instruction-override, replacement prompts, concealment, exfiltration phrasing | `security.body.hidden-unicode`, `security.body.instruction-override`, `security.body.prompt-replacement`, `security.body.conceal-from-user`, `security.body.exfiltration` |
 | AST02 | Supply Chain Compromise | Partial — `curl\|sh`, unpinned PEP 723 deps | `security.exec.curl-pipe-shell`, `security.deps.unpinned` |
 | AST03 | Over-Privileged Skills | Yes — unrestricted/wildcard `Bash` | `security.tools.unrestricted-bash`, `security.tools.broad-bash-glob` |
 | AST04 | Insecure Metadata     | Yes — hardcoded secrets/keys | `security.secret.hardcoded` (FAIL) |
@@ -38,7 +38,7 @@ A skill is executable trust: its SKILL.md becomes agent instructions and its bun
 
 **AST02 — Supply Chain Compromise.** Don't pipe a download into a shell (`curl … | sh`): fetch, verify a checksum or signature, then run. Pin PEP 723 dependencies to exact versions (`package==1.2.3`) so a compromised upstream release can't be pulled in silently. Review dependencies for known vulnerabilities before adding them.
 
-**AST01 — Malicious Skills.** The static check catches invisible/bidi-override unicode (Trojan Source) hidden in instructions, but the broader risk is human: read the SKILL.md as the *instructions an agent will follow*. Watch for steps that exfiltrate data, fetch-and-run remote code, or quietly escalate scope beyond the skill's stated job.
+**AST01 — Malicious Skills.** The static check catches invisible/bidi-override unicode (Trojan Source) and prose that reads as an attack — countermanding the operator (`ignore all previous instructions`), presenting a replacement system prompt, telling the agent to conceal actions from the user, or directing credentials/keys somewhere. It matches prose only: fenced code blocks and inline spans are blanked first, so a doc that *exhibits* a payload as an example — like the phrase just quoted above — must wrap it in backticks or a fence, or the scanner reads it as a live instruction. It is still a tripwire, not an adversary-proof filter — phrasing that doesn't match the patterns, or a payload deliberately hidden inside a fenced block, passes clean. The broader risk stays human: read the SKILL.md as the *instructions an agent will follow*. Watch for steps that exfiltrate data via channels the scanner doesn't model, fetch-and-run remote code, or quietly escalate scope beyond the skill's stated job.
 
 ## The process risks (human review)
 

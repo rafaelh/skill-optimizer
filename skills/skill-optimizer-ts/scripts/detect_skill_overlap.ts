@@ -156,7 +156,13 @@ export function sharedKeywords(a: string[], b: string[], top = TOP_SHARED_KEYWOR
   const countsA = counter(a);
   const countsB = counter(b);
   const shared = [...countsA.keys()].filter((k) => countsB.has(k));
-  shared.sort((x, y) => countsB.get(y)! + countsA.get(y)! - (countsB.get(x)! + countsA.get(x)!));
+  // Ties break by codepoint (not localeCompare) so this ranking matches the
+  // Python twin's `sorted(..., key=lambda k: (-count, k))` exactly.
+  shared.sort((x, y) => {
+    const byCount = countsB.get(y)! + countsA.get(y)! - (countsB.get(x)! + countsA.get(x)!);
+    if (byCount !== 0) return byCount;
+    return x < y ? -1 : x > y ? 1 : 0;
+  });
   return shared.slice(0, top);
 }
 
@@ -279,6 +285,7 @@ Options:
   --format <json|text>   Output format (default: text)
   --json                 Alias for --format json
   --quiet                Suppress informational stderr
+  --exit-on-warn         Return non-zero exit if any pair is above the threshold
   --help                 Show this help message
 `;
 
@@ -292,6 +299,7 @@ export function main(argv: string[]): number {
       format: { type: "string", default: "text" },
       json: { type: "boolean", default: false },
       quiet: { type: "boolean", default: false },
+      "exit-on-warn": { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
   });
@@ -359,7 +367,10 @@ export function main(argv: string[]): number {
     emitText(skills, overlaps);
   }
 
-  return overlaps.length > 0 ? 1 : 0;
+  // Findings are a successful result, not an invocation error — exit 1 is
+  // reserved for bad args. Opt into a failing exit with --exit-on-warn, the
+  // same way validate_skill.ts and audit_security.ts do.
+  return values["exit-on-warn"] && overlaps.length > 0 ? 1 : 0;
 }
 
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;

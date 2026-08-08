@@ -98,7 +98,7 @@ force-sort-within-sections = true
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
-include = ["skills"]
+include = ["skills", ".claude/skills"]
 exclude = ["**/node_modules", "**/__pycache__", ".venv"]
 venvPath = "."
 venv = ".venv"

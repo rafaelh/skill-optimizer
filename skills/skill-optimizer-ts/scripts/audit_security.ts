@@ -9,7 +9,9 @@
  *
  * What it checks (statically detectable):
  *
- *   AST01 Malicious Skills        hidden bidi/invisible unicode in instructions
+ *   AST01 Malicious Skills        hidden bidi/invisible unicode in instructions;
+ *                                 prose that countermands the operator, conceals
+ *                                 activity from the user, or directs exfiltration
  *   AST02 Supply Chain            curl|wget piped to a shell; unpinned package.json deps
  *   AST03 Over-Privileged Skills  unrestricted Bash() in allowed-tools, broad globs
  *   AST04 Insecure Metadata       hardcoded secrets / credentials / private keys
@@ -61,6 +63,46 @@ const CREDENTIAL_ASSIGN_RE =
 
 const SECRET_ALLOWLIST_RE =
   /(your[_-]?|example|placeholder|xxx+|<[^>]+>|\$\{?[A-Z_]+\}?|changeme|redacted|\.\.\.|fake|dummy|sample|test[_-]?(?:key|token|secret))/i;
+
+// --- AST01: prompt injection in agent-readable prose -------------------------
+// A skill's prose *is* the agent's instructions, so a directive that countermands
+// the operator, hides activity from the user, or ships credentials off-box is an
+// attack with no script involved. Matching runs over prose only — code spans are
+// blanked first, so a security doc that exhibits a payload as code (the way this
+// repo's own references do) doesn't trip the check that hunts for it.
+const INJECTION_PATTERNS: Array<[string, string, RegExp]> = [
+  [
+    "security.body.instruction-override",
+    "countermands the operator's instructions",
+    /\b(?:ignore|disregard|forget|override|bypass)\b[^.\n]{0,40}\b(?:previous|prior|earlier|preceding|above|all)\b[^.\n]{0,40}\b(?:instruction|prompt|rule|direction|guideline|constraint)s?\b/gi,
+  ],
+  [
+    "security.body.prompt-replacement",
+    "presents itself as a replacement system prompt",
+    /\b(?:new|updated|revised|real|actual)\s+(?:system\s+)?(?:prompt|instructions)\s*:/gi,
+  ],
+  [
+    // `user` must not be followed by `to <verb>`: "don't tell the user to run X"
+    // withholds an instruction, which is ordinary guidance. Concealment is
+    // "don't tell the user that/about …".
+    "security.body.conceal-from-user",
+    "tells the agent to hide its activity from the user",
+    /\b(?:do not|don't|never|avoid)\b[^.\n]{0,30}\b(?:tell|inform|notify|mention|reveal|disclose|show|alert)\b[^.\n]{0,30}\buser\b(?!\s+to\s)|\bwithout\s+(?:telling|informing|notifying|alerting)\s+(?:the\s+)?user\b(?!\s+to\s)/gi,
+  ],
+];
+
+// Exfiltration needs both halves in one sentence — a sink verb *and* something
+// worth stealing. Either alone is ordinary prose ("send the request", "your API key").
+const EXFIL_SINK_RE = /\b(?:exfiltrat\w+|upload|post|send|transmit|forward|email|leak)\w*\b/i;
+const EXFIL_TARGET_RE =
+  /(?:[~$]?\/?\.(?:ssh|aws|netrc|npmrc|env)\b)|\bid_(?:rsa|ed25519|ecdsa)\b|\bprivate[ _-]key\b|\bcredentials?\b|\bapi[ _-]?keys?\b|\baccess[ _-]?tokens?\b/i;
+// "Never ship a secret … a committed key is a leaked key" is advice, not an
+// attack. Judged per sentence: a negation anywhere in the clause disarms it, and
+// a sink verb can't pair with a target from an unrelated sentence.
+const NEGATION_RE =
+  /\b(?:not|never|avoid|refuse|forbid|prohibit|don't|doesn't|shouldn't|mustn't)\b/i;
+// Split on terminators followed by whitespace, so `SKILL.md` and `0.5` survive.
+const SENTENCE_SPLIT_RE = /(?<=[.!?])\s+|\n/g;
 
 // --- AST02: supply chain -----------------------------------------------------
 // Require a URL scheme between the fetch and the pipe: a real fetch-and-run
@@ -232,6 +274,7 @@ export function audit(skillDir: string): Finding[] {
     const rel = relative(skillDir, path);
     checkSecrets(content, rel, findings);
     checkCurlPipeShell(content, rel, findings);
+    checkPromptInjection(content, rel, findings);
   }
 
   for (const path of scriptFiles) {
@@ -354,6 +397,59 @@ function checkCurlPipeShell(content: string, rel: string, findings: Finding[]): 
         `pipes a remote download straight into a shell ('${sanitizeForEcho(m[0], 60)}'). Pin ` +
         "and verify the artifact (checksum/signature) before executing it.",
       where: `${rel}:${lineOf(content, m.index!)}`,
+    });
+  }
+}
+
+/** Blank fenced blocks and inline code, preserving length and newlines so
+ *  reported line numbers still point at the original file. */
+function blankCodeSpans(text: string): string {
+  const blank = (m: string) => [...m].map((c) => (c === "\n" ? "\n" : " ")).join("");
+  return text.replace(/```[\s\S]*?```/g, blank).replace(/`[^`\n]+`/g, blank);
+}
+
+/** (offset, sentence) pairs, so a sentence-scoped scan can still report a file position. */
+function iterSentences(text: string): Array<[number, string]> {
+  const spans: Array<[number, string]> = [];
+  let start = 0;
+  for (const m of text.matchAll(SENTENCE_SPLIT_RE)) {
+    spans.push([start, text.slice(start, m.index!)]);
+    start = m.index! + m[0].length;
+  }
+  spans.push([start, text.slice(start)]);
+  return spans;
+}
+
+/** AST01: malicious instructions written as plain prose. */
+function checkPromptInjection(content: string, rel: string, findings: Finding[]): void {
+  const prose = blankCodeSpans(content);
+
+  for (const [code, what, pattern] of INJECTION_PATTERNS) {
+    for (const m of prose.matchAll(pattern)) {
+      findings.push({
+        severity: "warn",
+        code,
+        ast: "AST01",
+        message:
+          `agent-readable text ${what} ('${sanitizeForEcho(m[0], 80)}'). A skill's prose ` +
+          "becomes the agent's instructions — this is a prompt-injection vector.",
+        where: `${rel}:${lineOf(content, m.index!)}`,
+      });
+    }
+  }
+
+  for (const [offset, sentence] of iterSentences(prose)) {
+    const target = EXFIL_TARGET_RE.exec(sentence);
+    const sink = EXFIL_SINK_RE.exec(sentence);
+    if (!target || !sink || NEGATION_RE.test(sentence)) continue;
+    findings.push({
+      severity: "warn",
+      code: "security.body.exfiltration",
+      ast: "AST01",
+      message:
+        `agent-readable text directs '${sink[0]}' of '${target[0]}'. Skills must not ` +
+        "instruct the agent to move credentials or private keys off the user's machine.",
+      where: `${rel}:${lineOf(content, offset)}`,
     });
   }
 }

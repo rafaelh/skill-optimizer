@@ -169,7 +169,9 @@ def shared_keywords(
     shared = set(counts_a) & set(counts_b)
     # Rank by combined frequency: keywords used heavily in both descriptions
     # are the most useful signal for what the agent will see as a collision.
-    ranked = sorted(shared, key=lambda k: counts_a[k] + counts_b[k], reverse=True)
+    # Ties break alphabetically — set iteration order varies with PYTHONHASHSEED,
+    # so without a total order the same input yields different keywords per run.
+    ranked = sorted(shared, key=lambda k: (-(counts_a[k] + counts_b[k]), k))
     return ranked[:top]
 
 
@@ -321,6 +323,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Alias for --format json.",
     )
     parser.add_argument("--quiet", action="store_true", help="Suppress informational stderr.")
+    parser.add_argument(
+        "--exit-on-warn",
+        action="store_true",
+        help="Return non-zero exit if any pair is above the threshold.",
+    )
     args = parser.parse_args(argv)
     use_json = args.as_json or args.format == "json"
 
@@ -374,7 +381,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         _emit_text(skills, overlaps)
 
-    return 1 if overlaps else 0
+    # Findings are a successful result, not an invocation error — exit 1 is
+    # reserved for bad args. Opt into a failing exit with --exit-on-warn, the
+    # same way validate_skill.py and audit_security.py do.
+    if args.exit_on_warn and overlaps:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

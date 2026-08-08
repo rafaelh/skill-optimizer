@@ -43,7 +43,7 @@ Audits, optimizes, validates, and trigger-evals Claude Agent Skills (SKILL.md fi
 - Counts tokens via the Anthropic SDK when available, heuristic fallback otherwise
 
 **Security**
-- Audits a skill against the [OWASP Agentic Skills Top 10](https://owasp.org/www-project-agentic-skills-top-10/): over-privileged `allowed-tools`, hardcoded secrets, unsafe deserialization, shell injection, supply-chain (fetch-and-run, unpinned deps), and hidden-unicode instructions
+- Audits a skill against the [OWASP Agentic Skills Top 10](https://owasp.org/www-project-agentic-skills-top-10/): over-privileged `allowed-tools`, hardcoded secrets, unsafe deserialization, shell injection, supply-chain (fetch-and-run, unpinned deps), hidden-unicode instructions, and prompt injection in prose (instruction-override, replacement system prompts, concealment from the user, exfiltration of credentials). No guarantee it'll work, but better than nothing!
 - Security checks cover SKILL.md and reference files regardless of language; Python-specific checks (unsafe deserialization, shell injection, dependency pinning) apply only to `.py` scripts
 
 Scripts live in `skills/skill-optimizer/scripts/` and accept `--json` for machine-readable output.

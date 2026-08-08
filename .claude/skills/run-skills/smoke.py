@@ -124,6 +124,14 @@ def check_json_stdout(res: Result, tools: list[Path], runner: list[str], label: 
         res.add(f"{label}/json/{rel}", ok, detail, exit_code=code)
 
 
+def _summary_of(out: str) -> dict[str, object] | None:
+    """Extract the `summary` object from a tool's --json output, or None if unparseable."""
+    try:
+        return json.loads(out)["summary"]
+    except json.JSONDecodeError, KeyError:
+        return None
+
+
 def check_self_audit(res: Result, runner: list[str], validator: Path, label: str) -> None:
     """The marketplace must pass its own spec validator.
 
@@ -132,9 +140,8 @@ def check_self_audit(res: Result, runner: list[str], validator: Path, label: str
     """
     for skill in skill_dirs():
         code, out, _ = run([*runner, str(validator), str(skill), "--json", "--quiet"])
-        try:
-            summary = json.loads(out)["summary"]
-        except json.JSONDecodeError, KeyError:
+        summary = _summary_of(out)
+        if summary is None:
             res.add(f"{label}/self-audit/{skill.name}", False, f"unparseable output (exit={code})")
             continue
         res.add(
@@ -151,9 +158,8 @@ def check_parity(res: Result) -> None:
     for skill in skill_dirs():
         _, a, _ = run([sys.executable, str(py), str(skill), "--json", "--quiet"])
         _, b, _ = run([str(TSX), str(ts), str(skill), "--json"])
-        try:
-            sa, sb = json.loads(a)["summary"], json.loads(b)["summary"]
-        except json.JSONDecodeError, KeyError:
+        sa, sb = _summary_of(a), _summary_of(b)
+        if sa is None or sb is None:
             res.add(f"parity/{skill.name}", False, "one side produced unparseable JSON")
             continue
         res.add(f"parity/{skill.name}", sa == sb, f"py={sa} ts={sb}")
@@ -190,6 +196,30 @@ def check_tests(res: Result) -> None:
     code, out, err = run(["npm", "test", "--silent"], cwd=TS_DIR)
     tail = [ln for ln in (out + err).splitlines() if "Tests" in ln or "failed" in ln]
     res.add("tests/vitest", code == 0, tail[-1].strip() if tail else f"exit={code}")
+
+
+def check_language(
+    res: Result,
+    label: str,
+    tools: list[Path],
+    runner: list[str],
+    validator: Path,
+    lang: str,
+    glob: str,
+) -> int | None:
+    """Run the --help/--json/self-audit group for one language. Returns a fatal
+    exit code if no tools were found, else None to continue the sweep."""
+    if not tools:
+        emit_error(
+            "smoke.tools.none-found",
+            f"no {lang} agent tools found under {glob}",
+            "check that the repo is intact and you are pointing at the right checkout",
+        )
+        return 3
+    check_help(res, tools, runner, label)
+    check_json_stdout(res, tools, runner, label)
+    check_self_audit(res, runner, validator, label)
+    return None
 
 
 def emit(res: Result, fmt: str, elapsed: float) -> None:
@@ -263,29 +293,23 @@ def main() -> int:
     py_validator = REPO / "skills" / "skill-optimizer" / "scripts" / "validate_skill.py"
 
     if "python" in groups:
-        tools = python_tools()
-        if not tools:
-            emit_error(
-                "smoke.tools.none-found",
-                "no Python agent tools found under skills/*/scripts/",
-                "check that the repo is intact and you are pointing at the right checkout",
-            )
-            return 3
-        check_help(res, tools, py_runner, "python")
-        check_json_stdout(res, tools, py_runner, "python")
-        check_self_audit(res, py_runner, py_validator, "python")
+        code = check_language(
+            res, "python", python_tools(), py_runner, py_validator, "Python", "skills/*/scripts/"
+        )
+        if code is not None:
+            return code
     if "ts" in groups:
-        tools = ts_tools()
-        if not tools:
-            emit_error(
-                "smoke.tools.none-found",
-                "no TypeScript agent tools found under skills/skill-optimizer-ts/scripts/",
-                "check that the repo is intact and you are pointing at the right checkout",
-            )
-            return 3
-        check_help(res, tools, ts_runner, "ts")
-        check_json_stdout(res, tools, ts_runner, "ts")
-        check_self_audit(res, ts_runner, TS_DIR / "scripts" / "validate_skill.ts", "ts")
+        code = check_language(
+            res,
+            "ts",
+            ts_tools(),
+            ts_runner,
+            TS_DIR / "scripts" / "validate_skill.ts",
+            "TypeScript",
+            "skills/skill-optimizer-ts/scripts/",
+        )
+        if code is not None:
+            return code
     if "parity" in groups:
         check_parity(res)
     if "manifests" in groups:

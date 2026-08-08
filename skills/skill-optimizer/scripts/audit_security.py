@@ -8,7 +8,9 @@ skill development guide.
 
 What it checks (statically detectable):
 
-    AST01 Malicious Skills        hidden bidi/invisible unicode in instructions
+    AST01 Malicious Skills        hidden bidi/invisible unicode in instructions;
+                                  prose that countermands the operator, conceals
+                                  activity from the user, or directs exfiltration
     AST02 Supply Chain            curl|wget piped to a shell; unpinned PEP 723 deps
     AST03 Over-Privileged Skills  unrestricted Bash() in allowed-tools, broad globs
     AST04 Insecure Metadata       hardcoded secrets / credentials / private keys
@@ -77,6 +79,70 @@ _SECRET_ALLOWLIST_RE = re.compile(
     r"(?i)(your[_-]?|example|placeholder|xxx+|<[^>]+>|\$\{?[A-Z_]+\}?|changeme|redacted|"
     r"\.\.\.|fake|dummy|sample|test[_-]?(?:key|token|secret))"
 )
+
+# --- AST01: prompt injection in agent-readable prose -------------------------
+# A skill's prose *is* the agent's instructions, so a directive that countermands
+# the operator, hides activity from the user, or ships credentials off-box is an
+# attack with no script involved. Matching runs over prose only — code spans are
+# blanked first, so a security doc that exhibits a payload as code (the way this
+# repo's own references do) doesn't trip the check that hunts for it.
+_INJECTION_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
+    (
+        "security.body.instruction-override",
+        "countermands the operator's instructions",
+        re.compile(
+            r"\b(?:ignore|disregard|forget|override|bypass)\b[^.\n]{0,40}"
+            r"\b(?:previous|prior|earlier|preceding|above|all)\b[^.\n]{0,40}"
+            r"\b(?:instruction|prompt|rule|direction|guideline|constraint)s?\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "security.body.prompt-replacement",
+        "presents itself as a replacement system prompt",
+        re.compile(
+            r"\b(?:new|updated|revised|real|actual)\s+(?:system\s+)?"
+            r"(?:prompt|instructions)\s*:",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "security.body.conceal-from-user",
+        "tells the agent to hide its activity from the user",
+        # `user` must not be followed by `to <verb>`: "don't tell the user to run
+        # X" withholds an instruction, which is ordinary guidance. Concealment is
+        # "don't tell the user that/about …".
+        re.compile(
+            r"\b(?:do not|don't|never|avoid)\b[^.\n]{0,30}"
+            r"\b(?:tell|inform|notify|mention|reveal|disclose|show|alert)\b"
+            r"[^.\n]{0,30}\buser\b(?!\s+to\s)"
+            r"|\bwithout\s+(?:telling|informing|notifying|alerting)\s+(?:the\s+)?"
+            r"user\b(?!\s+to\s)",
+            re.IGNORECASE,
+        ),
+    ),
+)
+
+# Exfiltration needs both halves on one line — a sink verb *and* something worth
+# stealing. Either alone is ordinary prose ("send the request", "your API key").
+_EXFIL_SINK_RE = re.compile(
+    r"\b(?:exfiltrat\w+|upload|post|send|transmit|forward|email|leak)\w*\b",
+    re.IGNORECASE,
+)
+_EXFIL_TARGET_RE = re.compile(
+    r"(?:[~$]?/?\.(?:ssh|aws|netrc|npmrc|env)\b)|\bid_(?:rsa|ed25519|ecdsa)\b"
+    r"|\bprivate[ _-]key\b|\bcredentials?\b|\bapi[ _-]?keys?\b|\baccess[ _-]?tokens?\b",
+    re.IGNORECASE,
+)
+# "Never ship a secret … a committed key is a leaked key" is advice, not an
+# attack. Judged per sentence: a negation anywhere in the clause disarms it, and
+# a sink verb can't pair with a target from an unrelated sentence.
+_NEGATION_RE = re.compile(
+    r"\b(?:not|never|avoid|refuse|forbid|prohibit|don't|doesn't|shouldn't|mustn't)\b",
+    re.IGNORECASE,
+)
+# Split on terminators followed by whitespace, so `SKILL.md` and `0.5` survive.
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n")
 
 # --- AST02: supply chain -----------------------------------------------------
 # Require a URL scheme between the fetch and the pipe: a real fetch-and-run
@@ -220,6 +286,7 @@ def audit(skill_dir: Path) -> list[Finding]:
         content = path.read_text(encoding="utf-8", errors="replace")
         _check_secrets(content, rel, findings)
         _check_curl_pipe_shell(content, rel, findings)
+        _check_prompt_injection(content, rel, findings)
 
     for path in py_files:
         rel = path.relative_to(skill_dir)
@@ -302,6 +369,65 @@ def _check_hidden_unicode(body: str, skill_md: Path, findings: list[Finding]) ->
                     "SKILL.md",
                 )
             )
+
+
+def _blank_code_spans(text: str) -> str:
+    """Blank fenced blocks and inline code, preserving length and newlines so
+    reported line numbers still point at the original file."""
+
+    def blank(m: re.Match[str]) -> str:
+        return "".join("\n" if c == "\n" else " " for c in m.group(0))
+
+    text = re.sub(r"```.*?```", blank, text, flags=re.DOTALL)
+    return re.sub(r"`[^`\n]+`", blank, text)
+
+
+def _check_prompt_injection(content: str, rel: Path, findings: list[Finding]) -> None:
+    """AST01: malicious instructions written as plain prose."""
+    prose = _blank_code_spans(content)
+
+    findings.extend(
+        Finding(
+            "warn",
+            code,
+            "AST01",
+            f"agent-readable text {what} "
+            f"({sanitize_for_echo(m.group(0), 80)!r}). A skill's prose becomes the "
+            f"agent's instructions — this is a prompt-injection vector.",
+            f"{rel}:{_line_of(content, m.start())}",
+        )
+        for code, what, pattern in _INJECTION_PATTERNS
+        for m in pattern.finditer(prose)
+    )
+
+    for offset, sentence in _iter_sentences(prose):
+        target = _EXFIL_TARGET_RE.search(sentence)
+        sink = _EXFIL_SINK_RE.search(sentence)
+        if not target or not sink or _NEGATION_RE.search(sentence):
+            continue
+        findings.append(
+            Finding(
+                "warn",
+                "security.body.exfiltration",
+                "AST01",
+                f"agent-readable text directs {sink.group(0)!r} of "
+                f"{target.group(0)!r}. Skills must not instruct the agent to move "
+                f"credentials or private keys off the user's machine.",
+                f"{rel}:{_line_of(content, offset)}",
+            )
+        )
+
+
+def _iter_sentences(text: str) -> list[tuple[int, str]]:
+    """(offset, sentence) pairs, so a sentence-scoped scan can still report a
+    file position."""
+    spans: list[tuple[int, str]] = []
+    start = 0
+    for m in _SENTENCE_SPLIT_RE.finditer(text):
+        spans.append((start, text[start : m.start()]))
+        start = m.end()
+    spans.append((start, text[start:]))
+    return spans
 
 
 def _check_secrets(content: str, rel: Path, findings: list[Finding]) -> None:

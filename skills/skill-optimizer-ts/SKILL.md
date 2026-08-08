@@ -50,7 +50,7 @@ Interpreting codes (if reviewing results yourself):
 - `analyze_skill.ts` — content anti-patterns: declarative openings, missing trigger contexts, body over 500 lines / 5000 tokens, generic filler, unguarded references. Codes: `analyze.<surface>.<concern>`.
 - `count_tokens.ts` — exact count (`@anthropic-ai/sdk`, if installed and `ANTHROPIC_API_KEY` is set) or calibrated heuristic (`len(text) / 3.5`). Returns `exact: false` on heuristic; treat as ±20%.
 
-`validate_skill.ts`, `analyze_skill.ts`, `audit_security.ts`, and `validate_agent_tool.ts` accept `--exit-on-warn` to treat warnings as failures (CI / pre-commit). `count_tokens.ts`, `perf_check.ts`, and `recommend_scripts.ts` do not — they emit no warnings.
+`validate_skill.ts`, `analyze_skill.ts`, `audit_security.ts`, `validate_agent_tool.ts`, and `detect_skill_overlap.ts` accept `--exit-on-warn` to treat findings as failures (CI / pre-commit); without it they exit 0 and you read the payload. `count_tokens.ts`, `perf_check.ts`, and `recommend_scripts.ts` do not — they emit no warnings.
 
 2. **Optimize the description.** Read [references/description-guide.md](references/description-guide.md) when:
 
