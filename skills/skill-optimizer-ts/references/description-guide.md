@@ -1,6 +1,8 @@
 # Optimizing skill descriptions
 
-The `description` field is the single point at which an agent decides whether to load your skill. Get it wrong and the skill never runs. This guide covers what to write, how to test it, and the iterative loop for improving it.
+The `description` field is the single point at which an agent decides whether to load your skill. Get it wrong and the skill never runs. This guide covers what to write and how to revise one that isn't pulling its weight.
+
+Measuring trigger rate by replaying real prompts through an agent is out of scope here — the native `skill-creator` skill does that. This guide is what you apply before and after that measurement.
 
 ## Why the description carries everything
 
@@ -57,86 +59,22 @@ description: >
 
 The improved version is **more specific** about what the skill does (summary stats, derived columns, charts, cleaning) and **broader** about when it applies (CSV, TSV, Excel; even without explicit keywords).
 
-## Designing trigger eval queries
+## Revising a weak description
 
-Build a JSON file of ~20 realistic user prompts labeled with whether they should trigger:
+Diagnose from the failure direction:
 
-```json
-[
-  {
-    "query": "I've got a spreadsheet in ~/data/q4_results.xlsx with revenue in col C and expenses in col D — can you add a profit margin column and highlight anything under 10%?",
-    "should_trigger": true
-  },
-  { "query": "whats the quickest way to convert this json file to yaml", "should_trigger": false }
-]
-```
+- **Should have triggered, didn't** → broaden scope, or add explicit trigger contexts for phrasings that don't name the domain.
+- **Triggered when it shouldn't** → add specificity, and draw the boundary with the adjacent skill explicitly ("NOT for X — see Y"). See [cross-skill-design.md](cross-skill-design.md).
+- **Don't paste keywords from a failing prompt** — that's overfitting to one phrasing. Address the underlying category it represents.
+- **If incremental tweaks stall**, try a structurally different framing rather than another round of word-tuning.
+- **Watch the 1024-char limit** — descriptions grow with every revision.
 
-Aim for 8–10 should-trigger queries and 8–10 should-not-trigger queries. Include:
-
-- **Phrasing variation**: formal, casual, typos, abbreviations.
-- **Explicitness variation**: some name the domain directly, others describe the need without naming it.
-- **Detail variation**: terse vs. context-heavy prompts.
-- **Complexity variation**: single-step vs. multi-step workflows where the skill's task is buried.
-- **Realism**: file paths, "my manager asked me to...", actual column names, casual language.
-
-The most valuable should-trigger queries are ones where the connection isn't obvious. The most valuable should-not-trigger queries are **near-misses** — same keywords, different actual need (e.g., "update Excel formulas" vs. CSV analysis; "upload CSV rows to postgres" vs. CSV analysis).
-
-## Running the eval
-
-Model behavior is nondeterministic, so run each query 3+ times and compute a trigger rate. A should-trigger query passes if rate > 0.5; a should-not-trigger passes if rate < 0.5.
-
-Skeleton — replace `check_triggered` with whatever your client exposes:
-
-```bash
-#!/bin/bash
-QUERIES_FILE="${1:?Usage: $0 <queries.json>}"
-SKILL_NAME="my-skill"
-RUNS=3
-
-check_triggered() {
-  local query="$1"
-  claude -p "$query" --output-format json 2>/dev/null \
-    | jq -e --arg skill "$SKILL_NAME" \
-      'any(.messages[].content[]; .type == "tool_use" and .name == "Skill" and .input.skill == $skill)' \
-      > /dev/null 2>&1
-}
-
-count=$(jq length "$QUERIES_FILE")
-for i in $(seq 0 $((count - 1))); do
-  query=$(jq -r ".[$i].query" "$QUERIES_FILE")
-  should=$(jq -r ".[$i].should_trigger" "$QUERIES_FILE")
-  triggers=0
-  for run in $(seq 1 $RUNS); do
-    check_triggered "$query" && triggers=$((triggers + 1))
-  done
-  jq -n --arg q "$query" --argjson s "$should" --argjson t "$triggers" --argjson r "$RUNS" \
-    '{query:$q, should_trigger:$s, triggers:$t, runs:$r, trigger_rate:($t/$r)}'
-done | jq -s '.'
-```
-
-## Avoiding overfitting
-
-Split queries into **train (~60%)** and **validation (~40%)**, with proportional positive/negative balance in each. Use train-set failures to guide changes; only consult validation results to confirm changes generalize. Keep the split fixed across iterations.
-
-## The optimization loop
-
-1. **Evaluate** the current description on both sets.
-2. **Identify train-set failures.** Which should-trigger queries didn't? Which should-not-trigger ones did?
-3. **Revise:**
-   - Should-trigger failures → broaden scope or add explicit trigger contexts.
-   - Should-not-trigger false-triggers → add specificity, clarify boundary with adjacent skills.
-   - Don't paste keywords from failed queries — that's overfitting. Address the underlying category.
-   - If incremental tweaks stall, try a structurally different framing.
-   - Watch the 1024-char limit; descriptions tend to grow.
-4. **Repeat** 3–5 times.
-5. **Pick the iteration with the best validation pass rate** — not necessarily the last one.
-
-If performance plateaus after a few iterations, the queries themselves may be the issue (too easy, too hard, mislabeled).
+The cases that most often expose a weak description are the ones where the connection isn't obvious (a should-trigger prompt that never names the domain) and **near-misses** — same keywords, different actual need ("update Excel formulas" vs. CSV analysis; "upload CSV rows to postgres" vs. CSV analysis). Write the description so it separates those two classes, not so it matches a list of prompts.
 
 ## Final sanity check
 
-After applying the winning description:
+After applying a revised description:
 
 1. Verify it's under 1024 chars (`validate_skill.ts` does this).
-2. Manually try 5–10 fresh prompts that were never in the eval set.
-3. Confirm the skill loads on positives and stays out of the way on negatives.
+2. Re-run `detect_skill_overlap.ts` against the sibling skills — a broadened description is the usual cause of a new collision.
+3. Manually try 5–10 fresh prompts and confirm the skill loads on positives and stays out of the way on near-miss negatives.

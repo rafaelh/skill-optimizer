@@ -1,7 +1,7 @@
 ---
 name: skill-optimizer-ts
-description: "For skills whose bundled scripts are TypeScript: audit, optimize, validate, and trigger-eval Agent Skills (SKILL.md files) for any agent compliant with the agentskills.io spec — Claude Code, GitHub Copilot, Codex, VS Code, and others. USE FOR: saving coding preferences; troubleshooting why instructions/skills/agents are ignored or not invoked; configuring applyTo patterns; defining tool restrictions; creating custom agent modes or specialized workflows; packaging domain knowledge; fixing YAML frontmatter syntax; auditing a skill on a machine without Python (e.g. Windows without a Python install). Also trigger when the user doesn't say \"skill\" — e.g., \"this prompt file isn't activating\", \"rewrite my SKILL.md\", \"why doesn't my agent pick up my custom command\", \"audit my skills directory\", or \"test whether my description triggers reliably\". NOT for skills whose bundled scripts are Python — use skill-optimizer for that."
-compatibility: Works with any agent platform supporting the agentskills.io specification (Claude Code, GitHub Copilot, Codex, VS Code). Requires Node.js 18.3+ (20+ recommended) and a one-time `npm ci` to resolve tsx/typescript/vitest. eval_triggers.ts and optimize_description.ts require an agent CLI on PATH (claude, copilot, or codex — configurable via --cli-bin). count_tokens.ts uses @anthropic-ai/sdk if ANTHROPIC_API_KEY is set, else a heuristic. Scripts run via `npx tsx`.
+description: "For skills whose bundled scripts are TypeScript: audit, validate, security-scan, and improve Agent Skills (SKILL.md files) for any agent compliant with the agentskills.io spec — Claude Code, GitHub Copilot, Codex, VS Code, and others. USE FOR: saving coding preferences; troubleshooting why instructions/skills/agents are ignored or not invoked; configuring applyTo patterns; defining tool restrictions; creating custom agent modes or specialized workflows; packaging domain knowledge; fixing YAML frontmatter syntax; auditing a skill on a machine without Python (e.g. Windows without a Python install). Also trigger when the user doesn't say \"skill\" — e.g., \"this prompt file isn't activating\", \"rewrite my SKILL.md\", \"why doesn't my agent pick up my custom command\", or \"audit my skills directory\". NOT for skills whose bundled scripts are Python — use skill-optimizer for that. NOT for running trigger-rate evals — use the native skill-creator skill for that."
+compatibility: Works with any agent platform supporting the agentskills.io specification (Claude Code, GitHub Copilot, Codex, VS Code). Requires Node.js 18.3+ (20+ recommended) and a one-time `npm ci` to resolve tsx/typescript/vitest. count_tokens.ts uses @anthropic-ai/sdk if ANTHROPIC_API_KEY is set, else a heuristic. All scripts are offline static analysis — no agent CLI required. Scripts run via `npx tsx`.
 argument-hint: "[skill-path]"
 allowed-tools: Bash(npx tsx *) Bash(npm ci) Read Edit Write Grep Glob
 metadata:
@@ -11,7 +11,9 @@ metadata:
 
 # Skill Optimizer (TypeScript)
 
-This skill operates in two modes. Identify which mode applies, then follow that mode's workflow exclusively.
+Audit and improve an existing skill: validate it against the spec, find content anti-patterns, security-scan it, audit its bundled scripts, and sharpen its description against its siblings.
+
+Out of scope: measuring how reliably a description triggers by running live prompts through an agent CLI. Hand that to the native `skill-creator` skill, then come back here to re-validate whatever it changed.
 
 ## Setup
 
@@ -28,22 +30,7 @@ cd "<SKILL_DIR>" && npm ci
 
 This resolves `tsx`, `typescript`, and `vitest` from the committed `package-lock.json`. Every workflow step below invokes scripts via `npx tsx`, which resolves against this local install.
 
-## Mode selection
-
-| Mode      | Use when the user wants to…                                                                               |
-| --------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **Audit** | Improve, validate, restructure, or security-audit an existing skill                                      |
-| **Eval**  | Run trigger evals, optimize a description for activation rate, or resolve overlap between sibling skills |
-
-If the request spans multiple modes (e.g. "audit this skill and make sure it doesn't overlap my others"), execute them in order: Audit → Eval.
-
----
-
-## Mode 1 — Audit
-
-Validate, analyze, optimize, and security-audit an existing skill.
-
-### Workflow
+## Workflow
 
 1. **Run static validators.** Delegate to a subagent to keep raw output out of the main context.
 
@@ -70,6 +57,21 @@ Interpreting codes (if reviewing results yourself):
 - The skill isn't activating
 - Description is under ~150 characters or starts with "This skill..."
 - You're about to revise the description
+
+Whenever you touch the description, check it against its siblings — a description is only as good as its separation from the skills it competes with. Delegate to a subagent; overlap detection produces O(n²) pair output for large skill directories.
+
+> **Subagent prompt:** Run overlap detection and return only pairs above the threshold. For each flagged pair, include the `shared_keywords` list and cosine score. If any pair scores ≥ 0.5, read [references/cross-skill-design.md](references/cross-skill-design.md) and include the recommended disambiguation strategy for that pair. If no pairs exceed the threshold, return "No overlap detected."
+>
+> ```bash
+> # single skill against its siblings
+> npx tsx "${SKILL_DIR}/scripts/detect_skill_overlap.ts" <skill-dir> \
+>   --against ~/.claude/skills/ --json
+>
+> # or an all-pairs scan of a skills directory
+> npx tsx "${SKILL_DIR}/scripts/detect_skill_overlap.ts" ~/.claude/skills/ --json
+> ```
+
+Read [references/cross-skill-design.md](references/cross-skill-design.md) when the script flags a pair above the threshold or the wrong skill activated for a request. Re-run detection after the description changes, to confirm you haven't created a new collision.
 
 3. **Optimize the body.** Read [references/content-patterns.md](references/content-patterns.md), then apply in order:
 
@@ -142,7 +144,7 @@ Forward-testing rules:
 
 Decision rule: err on the side of forward-testing. Skip only when the skill is trivial or the change is cosmetic. Ask for approval if forward-testing would take a long time, require additional user approvals, or modify live systems.
 
-### Gotchas (Audit)
+## Gotchas
 
 - A command that runs as `npx tsx "/scripts/<name>.ts"` — leading slash, no skill path — means `${SKILL_DIR}` went through unsubstituted. Node reports `ERR_MODULE_NOT_FOUND` for `file:///scripts/...`. Re-read Setup; don't retry the command verbatim.
 - Exit codes: `0` clean, `1` findings, `2` bad invocation, `3` nothing matched. A `2` means the path or flags were wrong, not that the skill failed validation.
@@ -150,64 +152,6 @@ Decision rule: err on the side of forward-testing. Skip only when the skill is t
 - `count_tokens.ts` heuristic counts are ±20% — fine for "over budget?" decisions, not for fine-grained arithmetic.
 - The `name` field MUST equal the parent directory name or `validate_skill.ts` reports `validate.name.dir-mismatch`.
 - A fresh clone without `node_modules/` fails to resolve `tsx` — run the Setup `npm ci` first.
-
----
-
-## Mode 2 — Eval
-
-Run trigger-rate evaluations, optimize a description for activation, and detect/resolve overlap between sibling skills.
-
-### Workflow
-
-1. **Check for overlap first.** Delegate to a subagent — overlap detection produces O(n²) pair output for large skill directories.
-
-> **Subagent prompt:** Run overlap detection on the skill directory and return only pairs above the threshold. For each flagged pair, include the `shared_keywords` list and cosine score. If any pair scores ≥ 0.5, read [references/cross-skill-design.md](references/cross-skill-design.md) and include the recommended disambiguation strategy for that pair.
->
-> ```bash
-> npx tsx "${SKILL_DIR}/scripts/detect_skill_overlap.ts" ~/.claude/skills/ --json
-> ```
->
-> Or for a single skill against siblings:
->
-> ```bash
-> npx tsx "${SKILL_DIR}/scripts/detect_skill_overlap.ts" <skill-dir> \
->   --against ~/.claude/skills/ --json
-> ```
->
-> If no pairs exceed the threshold, return "No overlap detected."
-
-Read [references/cross-skill-design.md](references/cross-skill-design.md) when the script flags a pair above the threshold or the wrong skill activated for a request.
-
-2. **Build a labeled query set.** Read [assets/templates/eval-queries.json.template](assets/templates/eval-queries.json.template) for the file shape and ~12 worked examples. Validate the query set against [assets/schemas/eval-queries.schema.json](assets/schemas/eval-queries.schema.json).
-
-3. **Run a trigger eval round:**
-
-```bash
-npx tsx "${SKILL_DIR}/scripts/eval_triggers.ts" \
-  --queries queries.json --skill-name <name> --runs 3 --json
-```
-
-4. **Iterate the description automatically:**
-
-```bash
-npx tsx "${SKILL_DIR}/scripts/optimize_description.ts" \
-  <skill-dir> --queries queries.json --rounds 3 --candidates 3 --json
-```
-
-Default is propose-only; pass `--apply` to write the winner to SKILL.md (creates `SKILL.md.bak`).
-
-5. **Re-run overlap detection** after changing the description to confirm you haven't created new collisions.
-
-Read [references/evaluation.md](references/evaluation.md) when:
-
-- Designing the query set (positive/negative balance, near-misses)
-- Interpreting eval output (what counts as a pass)
-- The optimization loop plateaus and you need to diagnose the queries themselves
-
-### Gotchas (Eval)
-
-- The `claude -p --output-format json` schema may shift between CLI versions. If `eval_triggers.ts` reports zero triggers across every query, suspect a schema change before assuming regression.
-- `optimize_description.ts` is nondeterministic — running it twice can produce different winners. The `.bak` file is the safe rollback; git is safer.
 - `detect_skill_overlap.ts` flags pairs above a threshold; it doesn't prove a misfire. Use the `shared_keywords` field as the actionable signal — three or more shared domain keywords is real overlap.
 - Two skills with bag-of-words cosine ≥ 0.5 and no explicit "NOT for X — see Y" disambiguator are a problem.
 

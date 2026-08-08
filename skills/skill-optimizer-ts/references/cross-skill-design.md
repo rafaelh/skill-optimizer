@@ -103,12 +103,12 @@ Some overlap is fine and even desirable:
 
 The pragmatic rule: overlap is a problem when the agent activates the _wrong_ skill for a given user intent. If the agent always picks correctly despite a high similarity score, the overlap is harmless.
 
-## Iterating with eval data
+## Confirming a fix
 
-If `detect_skill_overlap.ts` flags a pair, design eval queries that probe the boundary, run `eval_triggers.ts` against both skills with the same query set, and look for:
+A similarity score can't tell you whether the agent now picks correctly — only a live trigger test can. This skill doesn't run those; hand the pair to the native `skill-creator` skill and have it evaluate **both skills against the same query set**, watching for:
 
 - Queries where the wrong skill triggers (boundary failure).
 - Queries where neither triggers (gap — neither description claims this kind of prompt).
 - Queries where both trigger (over-broad descriptions).
 
-Fix descriptions one at a time, re-running the eval after each change. Re-running [evaluation.md](evaluation.md)'s loop on each skill independently won't surface the cross-skill confusion — you have to evaluate them jointly.
+Fix descriptions one at a time, re-testing after each change. Evaluating each skill in isolation won't surface cross-skill confusion — the pair has to be tested jointly. Come back and re-run `detect_skill_overlap.ts` afterwards to confirm the rewrite didn't collide with a third sibling.
