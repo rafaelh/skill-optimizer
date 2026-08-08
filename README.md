@@ -132,6 +132,33 @@ Scripts live in `skills/agent-tool-builder/scripts/` and accept `--json` for mac
 
 </details>
 
+
+<details>
+  <summary>architecture, plan, tdd, refactor</summary>
+
+## These skills are designed to be used together
+The `architecture` and `tdd` skills have been adapted for my needs from Matt Pocock's [Skills for Agents](https://github.com/mattpocock/skills), check his repo out, it's awesome. The refactor skill is adapted from Addy Osmani's [Agent Skills](https://github.com/addyosmani/agent-skills), also good to review.
+
+They assume you are working in a python codebase - you'll need to update them for anything else. They also assume you are using: `pyright` for type safety, `pytest` for testing, and `ruff` for linting/sast/etc. These are all pretty solid choices.
+
+The cycle for use should be:
+
+1. After running `/init` on a repo, use `/architecture` write ADRs, create `CONTEXT-MAP.md`
+2. `/plan` create a plan for a feature (with a smart model like Opus)
+3. `/tdd` test driven development, for building stuff (with a workhorse model like Sonnet)
+4. `/refactor` to simplify and refactor the work that has been done
+5. Optionally, `/architecture` to review an existing codebase for ADR violations, or look for deepening opportunities.
+
+### Architecture
+
+### Plan
+
+### TDD
+
+### Refactor
+
+
+</details>
 ---
 
 ## Installing

@@ -1,0 +1,6 @@
+{
+  "name": "architecture",
+  "description": "Audit code against ADRs and layer separation, find deepening opportunities, write ADRs and CONTEXT.md domain docs, and design module interfaces",
+  "version": "0.1.0",
+  "author": { "name": "Rafe Hart" }
+}

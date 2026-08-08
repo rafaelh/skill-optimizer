@@ -197,6 +197,8 @@ COMPARE BEFORE AND AFTER:
 
 If the "simplified" version is harder to understand or review, revert. Not every simplification attempt succeeds.
 
+**Report added vs deleted lines when you finish** (`git diff --stat`). A change that only adds is a claim that nothing became obsolete — if that's genuinely true, say so; if it isn't, you've missed a deletion, so go find it. This is a prompt to look, not a target to hit: a pass that adds lines and genuinely reads better is still a success (Principle 4).
+
 ## Python-specific guidance
 
 ```python

@@ -58,7 +58,7 @@ When exploring the codebase, check CLAUDE.md and AGENTS.md so that test names an
 Before writing any code:
 
 - [ ] Confirm with user what interface changes are needed
-- [ ] Confirm with user which behaviors to test (prioritize)
+- [ ] Confirm with user which behaviors to test, as a numbered list they approve — you can't test everything, so prioritize critical paths and complex logic. One behavior gets one test; input variants are `parametrize` cases on that test, not additional tests.
 - [ ] Identify opportunities for [deep modules](deep-modules.md) (small interface, deep implementation)
 - [ ] Design interfaces for [testability](interface-design.md)
 - [ ] List the behaviors to test (not implementation steps)
@@ -95,7 +95,7 @@ Rules:
 - Don't anticipate future tests
 - Keep tests focused on observable behavior
 
-### 4. Refactor
+### 4. Refactor the Implementation
 
 After all tests pass, look for [refactor candidates](refactoring.md):
 
@@ -106,6 +106,20 @@ After all tests pass, look for [refactor candidates](refactoring.md):
 - [ ] Run tests after each refactor step
 
 **Never refactor while RED.** Get to GREEN first.
+
+### 5. Refactor the Tests
+
+Steps 2–4 build the tests one cycle at a time, so the test files accumulate what iterative development always leaves behind: the same fixture constructed five slightly different ways, a `fake_api_request`
+copy-pasted per test, helpers that outlived the cycle that needed them. **Once all the requested
+functionality is built, do one final pass over the test files themselves** — the production code is done and untouched from here.
+
+Run the suite first; this pass starts and ends GREEN, and the tests keep asserting exactly what they asserted before. Nothing here is a behaviour change.
+
+**Readability outranks DRY here.** A test is read on the day it fails, usually by someone who didn't write it — so a test that spells out its own input beats one that hides it three fixtures away. Extract setup that is genuinely identical and incidental to the behaviour; leave duplication that is the subject of the test.
+
+**One behaviour, one test.** That is not a licence to keep every test the cycles produced. Collapse tests that differ only by input into `parametrize` cases — the inputs stay visible in the case list, so this costs no readability — and delete any test a later, broader one fully subsumes. Test code in this repo runs roughly 1:1 with production code by line count; every test kept is a line someone maintains, and a suite nobody can read is not coverage.
+
+**Verify the tests still bite.** Consolidation can quietly neuter a test (a fixture that no longer supplies the edge-case value, a parametrize case asserting the shared default). Briefly break one line of the implementation each consolidated test covers and confirm it goes RED, then revert.
 
 ## Verification
 
