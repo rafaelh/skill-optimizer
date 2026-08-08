@@ -6,10 +6,11 @@ A Claude Code plugin marketplace of Agent Skills that comply with (and enforce) 
 [agentskills.io](https://agentskills.io/) spec. Not a distributable library: `pyproject.toml` sets
 `package = false`, scripts run in place by path, nothing publishes to PyPI or npm.
 
-`skills/` is the single source for every skill. `.claude-plugin/marketplace.json` selects which ones
-publish; `.claude/skills/` symlinks the ones active while working *in* this repo. `.gitignore`
-excludes `.claude/*` but re-includes `.claude/skills/`, so those symlinks are tracked source and
-local settings are not.
+`skills/` is the single source for every skill; each one is a published plugin listed in
+`.claude-plugin/marketplace.json`. `.claude/skills/` symlinks the subset active while working *in*
+this repo. `.gitignore` excludes `.claude/*` but re-includes `.claude/skills/`, so those symlinks
+are tracked source and local settings are not. The one non-symlink there is `run-skills/`, the
+repo's own smoke driver — repo-local tooling, deliberately not a published plugin.
 
 Script-bearing skills — held to the contracts below:
 
@@ -49,15 +50,17 @@ npm run format                            # prettier --write
 
 ### Skill layout is a contract, not a convention
 
-A published skill is `SKILL.md` + optional `scripts/` / `references/` / `assets/` + its own
+A skill is `SKILL.md` + optional `scripts/` / `references/` / `assets/` + its own
 `.claude-plugin/plugin.json`. `validate_skill.py` enforces that frontmatter `name` equals the parent
 directory name (`validate.name.dir-mismatch`) and that every `references/*.md` link and
 `` `scripts/*.py` `` mention resolves to a real file — so renaming a skill directory breaks
 validation until the frontmatter follows.
 
-Adding or renaming a published skill means editing **two** manifests: the root
-`.claude-plugin/marketplace.json` (the plugin list) and the skill's own `.claude-plugin/plugin.json`.
-They version independently; bump only the one you changed.
+Adding or renaming a skill means editing **two** manifests: the root
+`.claude-plugin/marketplace.json` (the plugin list, keyed by `source: ./skills/<name>`) and the
+skill's own `.claude-plugin/plugin.json`. There is no plugin manifest at the repo root — the root is
+the marketplace. Skills version independently; a plugin.json `version` mirrors its SKILL.md
+`metadata.version` where the skill declares one.
 
 ### Scripts are agent tools and are validated as such
 

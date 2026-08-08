@@ -1,0 +1,6 @@
+{
+  "name": "plan",
+  "description": "Interview and stress-test a plan or design until every branch of the decision tree is resolved",
+  "version": "0.1.0",
+  "author": { "name": "Rafe Hart" }
+}

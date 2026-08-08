@@ -1,0 +1,6 @@
+{
+  "name": "refactor",
+  "description": "Simplify code that works but is harder to read, maintain, or extend than it should be",
+  "version": "0.1.0",
+  "author": { "name": "Rafe Hart" }
+}

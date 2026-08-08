@@ -59,6 +59,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+".claude/skills/run-skills/smoke.py" = [
+    "S603",    # subprocess argv is built from repo-relative paths, never user input
+]
 "skills/skill-optimizer/scripts/perf_check.py" = [
     "ERA001",  # noqa comments are intentional
     "RUF001",  # × in user-facing messages is intentional (multiplication sign)

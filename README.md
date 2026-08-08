@@ -168,9 +168,13 @@ This repo is a Claude Code plugin marketplace. From inside Claude Code, add the 
 
 ```
 /plugin marketplace add rafaelh/skill-optimizer
-/plugin install skill-optimizer@rafaelh-skill-optimizer
-/plugin install skill-optimizer-ts@rafaelh-skill-optimizer
-/plugin install agent-tool-builder@rafaelh-skill-optimizer
+/plugin install skill-optimizer@rafaelh
+/plugin install skill-optimizer-ts@rafaelh
+/plugin install agent-tool-builder@rafaelh
+/plugin install architecture@rafaelh
+/plugin install plan@rafaelh
+/plugin install tdd@rafaelh
+/plugin install refactor@rafaelh
 /reload-plugins
 ```
 

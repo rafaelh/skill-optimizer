@@ -1,0 +1,6 @@
+{
+  "name": "tdd",
+  "description": "Test-driven development: red-green-refactor cycles with deep-module and interface-design guidance",
+  "version": "0.1.0",
+  "author": { "name": "Rafe Hart" }
+}
